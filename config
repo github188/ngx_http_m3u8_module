@@ -1,0 +1,13 @@
+ngx_addon_name=ngx_http_m3u8_module
+CORE_LIBS="$CORE_LIBS -L$ngx_addon_dir/lib -L$ngx_addon_dir/lib/av_player\
+			-lAVPlayer -lfaac -lfaad -lavcodec -lavfilter -lavformat -lavutil -lswresample -lswscale \
+          	-lGssLiveConn -lp2p -luuid  -lpthread -lstdc++ -lm"
+CORE_INCS="$CORE_INCS $ngx_addon_dir/include"
+HTTP_MODULES="$HTTP_MODULES ngx_http_m3u8_module"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_m3u8_module.c \
+		$ngx_addon_dir/src/m3u8_factory.c \
+		$ngx_addon_dir/src/comm_helper.c \
+		$ngx_addon_dir/src/cmap.c \
+		$ngx_addon_dir/src/cqueue.c \
+		$ngx_addon_dir/src/lock_utils.c \
+		$ngx_addon_dir/src/utils_log.c"
