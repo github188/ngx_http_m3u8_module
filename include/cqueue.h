@@ -3,6 +3,8 @@
 
 #define null 0 
 
+#include "lock_utils.h"
+
 typedef int status;
 typedef void* elem;
 
@@ -15,6 +17,7 @@ typedef struct
 	cqueuenode *front;
 	cqueuenode *rear;
 	int size;
+	CMtx lock;
 }cqueue;
 
 #ifdef __cplusplus

@@ -9,7 +9,6 @@ typedef struct m3u8_factory_T
 {
 	struct m3u8_factory_T* factory;
 	cmap			hls_map;
-	CMtx			mtx_hls_map;
 	pthread_t		th_liveness;
 	int				stop_liveness;
 }m3u8_factory_t;
@@ -21,7 +20,6 @@ typedef struct m3u8_node
 	int				liveness;		//是否存活，否则将会被m3u8_factory_hls_liveness_proc清除
 	char			m3u8[64];		//m3u8文件
 	cqueue			ts_queue;		//当前m3u8文件描述的ts文件队列
-	CMtx			mtx_ts;
 	int				m3u8_index;		//当前直播的m3u8序列号
 	pthread_t		ht_ts_build;
 	int				stop_ts_build;

@@ -11,9 +11,12 @@
 #include "GssLiveConnInterface.h"
 #include "AVPlayer.h"
 
+#define HLS_FRAGMENT 		7
+#define HLS_KEEPLIVE_SEC 	20
+
 #define M3U8_HEADER "\
 #EXTM3U\r\n\
-#EXT-X-TARGETDURATION:12\r\n\
+#EXT-X-TARGETDURATION:%d\r\n\
 #EXT-X-VERSION:6\r\n\
 #EXT-X-MEDIA-SEQUENCE:%d\r\n\
 "
@@ -22,7 +25,6 @@
 #EXTINF:%d,\r\n\
 %s\r\n\
 "
-
 
 static m3u8_factory_t* s_m3u8_factory = NULL;
 
@@ -39,7 +41,6 @@ m3u8_factory_t* m3u8_factory_create()
 		s_m3u8_factory->th_liveness = 0;
 		s_m3u8_factory->factory = s_m3u8_factory;
 		cmap_init(&s_m3u8_factory->hls_map);
-		s_m3u8_factory->mtx_hls_map = cmtx_create();
 
 		int ret = pthread_create(&s_m3u8_factory->th_liveness, NULL, m3u8_factory_hls_liveness_proc, (void*)s_m3u8_factory);
 		if(ret != 0 ){
@@ -48,8 +49,6 @@ m3u8_factory_t* m3u8_factory_create()
 		}
 	}
 
-	
-	
 	return s_m3u8_factory;
 }
 
@@ -64,7 +63,6 @@ void m3u8_factory_destory(m3u8_factory_t* h)
 		s_m3u8_factory->th_liveness = 0;
 	}
 	
-	cmtx_enter(h->mtx_hls_map);
 	int i;
 	int size = cmap_size(&h->hls_map);
 	for(i=0; i<size; i++){
@@ -79,10 +77,7 @@ void m3u8_factory_destory(m3u8_factory_t* h)
 		}
 	}
 	cmap_clear(&h->hls_map);
-	cmtx_leave(h->mtx_hls_map);
-
 	cmap_destory(&h->hls_map);
-	cmtx_delete(h->mtx_hls_map);
 
 	free(h);
 	s_m3u8_factory = NULL;
@@ -98,20 +93,21 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 	if(h == NULL)
 		h = m3u8_factory_create();
 	LOGI_print("h:%p uid:%s", h, uid);
-	
-	if(strcmp(uid, "A99762101001002") == 0){
+
+	m3u8_node_t* client = (m3u8_node_t*)cmap_find(&h->hls_map, uid);
+	if(client == NULL){
+		LOGW_print("cmap_find %s error", uid);
 		m3u8_node_t* node = m3u8_node_create(h, uid);
 		if(node != NULL)
 		{
-			cmtx_enter(h->mtx_hls_map);
-			int ret = cmap_insert(&h->hls_map, 2101001002, node);
-			cmtx_leave(h->mtx_hls_map);
+			int ret = cmap_insert(&h->hls_map, uid, node);
 			if(ret != 0)
 			{
-				LOGE_print("hls_map cmap_insert error 2101001002");
+				LOGE_print("hls_map cmap_insert error %s", uid);
 			}
 			else
 			{
+				LOGW_print("hls_map cmap_insert %s", uid);
 				m3u8_node_gss_open(node);
 			}
 		}
@@ -141,11 +137,9 @@ m3u8_factory_t* m3u8_factory_get()
 //private
 int m3u8_factory_hls_liveness_set(m3u8_factory_t* h, char* uid){
 	LOGI_print("uid:%s", uid);
-	cmtx_enter(h->mtx_hls_map);
-	m3u8_node_t* client = (m3u8_node_t*)cmap_find(&h->hls_map, 2101001002);
+	m3u8_node_t* client = (m3u8_node_t*)cmap_find(&h->hls_map, uid);
 	if(client != NULL)
 		client->liveness = 1;
-	cmtx_leave(h->mtx_hls_map);
 	
 	return 0;
 }
@@ -157,7 +151,6 @@ void* m3u8_factory_hls_liveness_proc(void* args)
 	while(h->stop_liveness != 1)
 	{
 		LOGI_print("hls_map size:%d", cmap_size(&h->hls_map));
-		cmtx_enter(h->mtx_hls_map);
 		int erase = 0;
 		int size = cmap_size(&h->hls_map);
 		for(i=0; i<size; i++)
@@ -182,16 +175,16 @@ void* m3u8_factory_hls_liveness_proc(void* args)
 				break;
 			}
 		}
-		cmtx_leave(h->mtx_hls_map);
 		if(erase == 1)
 			continue;
 		
-		usleep(45*1000*1000);
+		usleep(HLS_KEEPLIVE_SEC*1000*1000);
 	}
 	return NULL;
 }
 
-m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid){
+m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid)
+{
 	m3u8_node_t* node = (m3u8_node_t*)malloc(sizeof(m3u8_node_t));
 
 	node->stop_ts_build = 0;
@@ -203,7 +196,6 @@ m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid){
 	strcat(node->m3u8, ".m3u8");
 	node->m3u8_index = 1;
 	cqueue_init(&node->ts_queue);
-	node->mtx_ts = cmtx_create();
 
 	//默认的加载视频缓存
 	ts_info_t* info = (ts_info_t*)malloc(sizeof(ts_info_t));
@@ -218,12 +210,8 @@ void m3u8_node_destory(m3u8_node_t* node)
 {
 	m3u8_node_gss_close(node);
 	
-	cmtx_enter(node->mtx_ts);
 	cqueue_clear(&node->ts_queue);
-	cmtx_leave(node->mtx_ts);
-
 	cqueue_destory(&node->ts_queue);
-	cmtx_delete(node->mtx_ts);
 
 	LOGI_print("delete ts file");
 	LOGI_print("delete m3u8 file");
@@ -300,7 +288,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	snprintf(cmd, 128, "./_install/html/hls/%s", node->m3u8);
 	FILE* m3u8 = fopen(cmd, "wb");
 	
-	snprintf(cmd, 128, M3U8_HEADER, node->m3u8_index);
+	snprintf(cmd, 128, M3U8_HEADER, 10, node->m3u8_index);
 	fwrite(cmd, strlen(cmd), 1, m3u8);
 	
 	int i;
@@ -320,7 +308,7 @@ void m3u8_node_update(m3u8_node_t* node)
 static long m3u8_node_rec_call_back(long nPort, AVRecEvent eventRec, long lData, long lUserParam)
 {
 	LOGI_print("nPort:%ld, eventRec:%d lData:%ld lUserParam:%ld", nPort, eventRec, lData, lUserParam);
-	if(eventRec == 2 && lData >= 10)
+	if(eventRec == 2 && lData >= HLS_FRAGMENT)
 	{
 		m3u8_node_t* h = (m3u8_node_t*)lUserParam;
 		h->recflush = 1;
@@ -329,30 +317,13 @@ static long m3u8_node_rec_call_back(long nPort, AVRecEvent eventRec, long lData,
 	return 0;
 }
 
-
 void* m3u8_node_ts_buid_proc(void* args)
 {
-	int ret = 0;;
+	int ret = 0;
 	m3u8_node_t* h = (m3u8_node_t*)args;
 
 	while(h->stop_ts_build != 1)
-	{		
-//		if(h->recflush == 1)
-//		{
-//			ret = AV_StopRec(h->av_port);
-//			if(ret == 0 && h->fileindex != 0)
-//			{
-//				m3u8_node_update(h);
-//			}
-//			
-//			h->fileindex++;
-//			char filename[64] = {0};
-//			snprintf(filename, 64, "./_install/html/hls/%s_%d.ts", h->uid, h->fileindex);
-//			LOGI_print("h->av_port:%d filename:%s", h->av_port, filename);
-//			ret = AV_StartRec(h->av_port, filename, (void*)m3u8_node_rec_call_back, (long)h);
-//			h->recflush = 0;
-//		}
-		
+	{				
 		unsigned char* pData = NULL;
 		int datalen;
 		ret = GssLiveConnInterfaceGetVideoFrame(h->glc_index, &pData, &datalen);
@@ -378,7 +349,7 @@ void* m3u8_node_ts_buid_proc(void* args)
 			}
 					
 			ret = AV_PutFrame(h->av_port,pData,datalen, 0);
-			LOGI_print("datalen:%d ret:%d sWidth:%d sHeight:%d nFrameType:%d", datalen, ret, head.sWidth, head.sHeight, head.nFrameType);
+//			LOGI_print("datalen:%d ret:%d sWidth:%d sHeight:%d nFrameType:%d", datalen, ret, head.sWidth, head.sHeight, head.nFrameType);
 			GssLiveConnInterfaceFreeVideoFrame(h->glc_index);
 		}
 		
