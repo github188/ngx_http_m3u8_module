@@ -1,0 +1,2 @@
+crossdomain.xml放在html目录下，设置可访问权限
+和nginx.conf中的add_header设置跨域问题

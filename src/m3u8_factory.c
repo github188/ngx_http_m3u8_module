@@ -26,6 +26,7 @@
 %s\r\n\
 "
 
+#define P2P_DISPATCH_ADDR	"enp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
 static m3u8_factory_t* s_m3u8_factory = NULL;
 
 //public
@@ -33,7 +34,7 @@ m3u8_factory_t* m3u8_factory_create()
 {
 	if(s_m3u8_factory == NULL){
 		////////////////////////////////////////
-		GssLiveConnInterfaceInit("cnp2p.ulifecam.com:6001", ".", 1);
+		GssLiveConnInterfaceInit(P2P_DISPATCH_ADDR, ".", 1);
 		AV_Init(0, ".");
 		
 		s_m3u8_factory = (m3u8_factory_t*)malloc(sizeof(m3u8_factory_t));
