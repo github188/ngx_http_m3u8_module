@@ -26,7 +26,7 @@
 %s\r\n\
 "
 
-#define P2P_DISPATCH_ADDR	"enp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
+#define P2P_DISPATCH_ADDR	"cnp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
 static m3u8_factory_t* s_m3u8_factory = NULL;
 
 //public
@@ -37,11 +37,14 @@ m3u8_factory_t* m3u8_factory_create()
 		GssLiveConnInterfaceInit(P2P_DISPATCH_ADDR, ".", 1);
 		AV_Init(0, ".");
 		
+		LOGE_print("start connect p2p server:%s", P2P_DISPATCH_ADDR);
+
 		s_m3u8_factory = (m3u8_factory_t*)malloc(sizeof(m3u8_factory_t));
 		s_m3u8_factory->stop_liveness = 0;
 		s_m3u8_factory->th_liveness = 0;
 		s_m3u8_factory->factory = s_m3u8_factory;
 		cmap_init(&s_m3u8_factory->hls_map);
+		m3u8_get_current_path(s_m3u8_factory->cur_path, sizeof(s_m3u8_factory->cur_path));
 
 		int ret = pthread_create(&s_m3u8_factory->th_liveness, NULL, m3u8_factory_hls_liveness_proc, (void*)s_m3u8_factory);
 		if(ret != 0 ){
@@ -135,6 +138,20 @@ m3u8_factory_t* m3u8_factory_get()
 	return s_m3u8_factory;
 }
 
+void m3u8_get_current_path(char* cur_path, int size)
+{
+	char* path = 0;
+	char szPath[M3U8_MAX_PATH] = {0};
+	if(getcwd(szPath, sizeof(szPath) - 1))
+	{
+		path = strstr(szPath, "sbin");
+		if(path)
+		{
+			strncpy(cur_path, szPath, path - szPath);
+		}
+	}
+}
+
 //private
 int m3u8_factory_hls_liveness_set(m3u8_factory_t* h, char* uid){
 	LOGI_print("uid:%s", uid);
@@ -217,7 +234,7 @@ void m3u8_node_destory(m3u8_node_t* node)
 	LOGI_print("delete ts file");
 	LOGI_print("delete m3u8 file");
 	char cmd[128] = {0};
-	snprintf(cmd, 128, "rm -rf ./_install/html/hls/%s*", node->uid);
+	snprintf(cmd, 128, "rm -rf %shtml/hls/%s*", node->factory->cur_path, node->uid);
 	exec_cmd(cmd);
 
 	free(node);
@@ -268,7 +285,7 @@ void m3u8_node_update(m3u8_node_t* node)
 		if(strstr(info->path, "loading") == NULL)
 		{
 			//删除这个文件
-			snprintf(cmd, 128, "rm -rf ./_install/html/hls/%s", info->path);
+			snprintf(cmd, 128, "rm -rf %shtml/hls/%s", node->factory->cur_path, info->path);
 			exec_cmd(cmd);
 		}
 		node->m3u8_index++;
@@ -286,7 +303,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	LOGI_print("info inf:%d path:%s", info->inf, info->path);
 
 	//这里需要做文件读写锁??
-	snprintf(cmd, 128, "./_install/html/hls/%s", node->m3u8);
+	snprintf(cmd, 128, "%shtml/hls/%s", node->factory->cur_path, node->m3u8);
 	FILE* m3u8 = fopen(cmd, "wb");
 	
 	snprintf(cmd, 128, M3U8_HEADER, 10, node->m3u8_index);
@@ -343,7 +360,7 @@ void* m3u8_node_ts_buid_proc(void* args)
 				
 				h->fileindex++;
 				char filename[64] = {0};
-				snprintf(filename, 64, "./_install/html/hls/%s_%d.ts", h->uid, h->fileindex);
+				snprintf(filename, 64, "%shtml/hls/%s_%d.ts", h->factory->cur_path, h->uid, h->fileindex);
 				LOGI_print("h->av_port:%d filename:%s", h->av_port, filename);
 				ret = AV_StartRec(h->av_port, filename, (void*)m3u8_node_rec_call_back, (long)h);
 				h->recflush = 0;

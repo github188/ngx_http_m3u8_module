@@ -10,12 +10,13 @@
 #include <fcntl.h>
 #include "m3u8_factory.h"
 
+
 static ngx_int_t ngx_http_m3u8_handler(ngx_http_request_t *r);
 static char* ngx_http_m3u8(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path);
 static ngx_int_t ngx_http_p2p_data_ask(ngx_str_t path);
 
-#define DEFAULT_M3U8_PATH	"./_install/html/loading.m3u8"
+#define DEFAULT_M3U8_PATH	"html/loading.m3u8"
 /**
  * 处理nginx.conf中的配置命令解析
  * 例如：
@@ -63,15 +64,26 @@ ngx_module_t ngx_http_m3u8_module = {
 
 ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 {	
+	char cur_path[NGX_MAX_PATH] = {0};
+	ngx_log_t* log;
+
 	ngx_copy_file_t 		  cf;
 	ngx_file_info_t 		  fi;
 	if(ngx_strstr(path.data, "/hls/") == NULL){
 		return NGX_HTTP_NOT_FOUND;
 	}
+
+	//
+	log = r->connection->log;
+
+	m3u8_get_current_path(cur_path, sizeof(NGX_MAX_PATH));
+	strcat(cur_path, DEFAULT_M3U8_PATH);
+	ngx_log_debug2(NGX_LOG_DEBUG_HTTP, log, 0,
+		"current path========%s, %s", cur_path, path.data);
 	
 	if (ngx_link_info(path.data, &fi) == NGX_FILE_ERROR){	//文件不存在
 	
-		ngx_str_t tmp = ngx_string(DEFAULT_M3U8_PATH);
+		ngx_str_t tmp = ngx_string(cur_path);
 		ngx_link_info(tmp.data, &fi);
 			
 		cf.size = ngx_file_size(&fi);
@@ -82,7 +94,9 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 				
 		if (ngx_copy_file(tmp.data, path.data, &cf) != NGX_OK) {
 			return NGX_HTTP_NO_CONTENT;
-		}	
+		}
+
+		ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0, "111111111111111");
 	}
 	else
 	{

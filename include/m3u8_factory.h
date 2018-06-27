@@ -5,12 +5,17 @@
 #include "cqueue.h"
 #include "lock_utils.h"
 
+#ifndef M3U8_MAX_PATH
+#define M3U8_MAX_PATH		4096
+#endif
+
 typedef struct m3u8_factory_T
 {
 	struct m3u8_factory_T* factory;
 	cmap			hls_map;
 	pthread_t		th_liveness;
 	int				stop_liveness;
+	char			cur_path[M3U8_MAX_PATH];
 }m3u8_factory_t;
 
 typedef struct m3u8_node
