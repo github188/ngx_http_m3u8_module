@@ -67,19 +67,19 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 	char cur_path[NGX_MAX_PATH] = {0};
 	ngx_log_t* log;
 
+	log = r->connection->log;
 	ngx_copy_file_t 		  cf;
 	ngx_file_info_t 		  fi;
 	if(ngx_strstr(path.data, "/hls/") == NULL){
+		ngx_log_error(NGX_LOG_DEBUG_HTTP, log, 0,
+		"path %s error", path.data);
 		return NGX_HTTP_NOT_FOUND;
 	}
 
-	//
-	log = r->connection->log;
-
 	m3u8_get_current_path(cur_path, sizeof(NGX_MAX_PATH));
 	strcat(cur_path, DEFAULT_M3U8_PATH);
-	ngx_log_debug2(NGX_LOG_DEBUG_HTTP, log, 0,
-		"current path========%s, %s", cur_path, path.data);
+	ngx_log_debug(NGX_LOG_DEBUG_HTTP, log, 0,
+		"current path===%s, %s", cur_path, path.data);
 	
 	if (ngx_link_info(path.data, &fi) == NGX_FILE_ERROR){	//文件不存在
 	
@@ -96,7 +96,7 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 			return NGX_HTTP_NO_CONTENT;
 		}
 
-		ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0, "111111111111111");
+		ngx_log_debug(NGX_LOG_DEBUG_HTTP, log, 0, "default m3u8 set OK");
 	}
 	else
 	{

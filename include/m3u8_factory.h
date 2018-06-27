@@ -43,6 +43,7 @@ void m3u8_factory_destory(m3u8_factory_t* h);
 int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid);
 int m3u8_factory_hls_close(m3u8_factory_t* h, char* uid);
 m3u8_factory_t* m3u8_factory_get();
+void m3u8_get_current_path(char* cur_path, int size);
 
 //private
 int m3u8_factory_hls_liveness_set(m3u8_factory_t* h, char* uid);
