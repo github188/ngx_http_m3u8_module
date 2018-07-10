@@ -26,7 +26,7 @@
 %s\r\n\
 "
 
-#define P2P_DISPATCH_ADDR	"cnp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
+#define P2P_DISPATCH_ADDR	"enp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
 static m3u8_factory_t* s_m3u8_factory = NULL;
 
 //public
@@ -45,6 +45,7 @@ m3u8_factory_t* m3u8_factory_create()
 		s_m3u8_factory->factory = s_m3u8_factory;
 		cmap_init(&s_m3u8_factory->hls_map);
 		m3u8_get_current_path(s_m3u8_factory->cur_path, sizeof(s_m3u8_factory->cur_path));
+		LOGI_print("cur_path:%s", s_m3u8_factory->cur_path);
 
 		int ret = pthread_create(&s_m3u8_factory->th_liveness, NULL, m3u8_factory_hls_liveness_proc, (void*)s_m3u8_factory);
 		if(ret != 0 ){
@@ -107,7 +108,7 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 			int ret = cmap_insert(&h->hls_map, uid, node);
 			if(ret != 0)
 			{
-				LOGE_print("hls_map cmap_insert error %s", uid);
+				LOGW_print("hls_map cmap_insert error %s", uid);
 			}
 			else
 			{
