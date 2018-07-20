@@ -11,7 +11,7 @@
 #include "GssLiveConnInterface.h"
 #include "AVPlayer.h"
 
-#define HLS_FRAGMENT 		7
+#define HLS_FRAGMENT 		3
 #define HLS_KEEPLIVE_SEC 	20
 
 #define M3U8_HEADER "\
@@ -26,7 +26,7 @@
 %s\r\n\
 "
 
-#define P2P_DISPATCH_ADDR	"enp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
+#define P2P_DISPATCH_ADDR	"cnp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
 static m3u8_factory_t* s_m3u8_factory = NULL;
 
 //public
@@ -37,7 +37,7 @@ m3u8_factory_t* m3u8_factory_create()
 		GssLiveConnInterfaceInit(P2P_DISPATCH_ADDR, ".", 1);
 		AV_Init(0, ".");
 		
-		LOGE_print("start connect p2p server:%s", P2P_DISPATCH_ADDR);
+		LOGI_print("start connect p2p server:%s", P2P_DISPATCH_ADDR);
 
 		s_m3u8_factory = (m3u8_factory_t*)malloc(sizeof(m3u8_factory_t));
 		s_m3u8_factory->stop_liveness = 0;
@@ -143,8 +143,9 @@ void m3u8_get_current_path(char* cur_path, int size)
 {
 	char* path = 0;
 	char szPath[M3U8_MAX_PATH] = {0};
-	if(getcwd(szPath, sizeof(szPath) - 1))
+	if(readlink("/proc/self/exe", szPath, M3U8_MAX_PATH))
 	{
+		LOGI_print("szPath:%s", szPath);
 		path = strstr(szPath, "sbin");
 		if(path)
 		{
@@ -307,7 +308,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	snprintf(cmd, 128, "%shtml/hls/%s", node->factory->cur_path, node->m3u8);
 	FILE* m3u8 = fopen(cmd, "wb");
 	
-	snprintf(cmd, 128, M3U8_HEADER, 10, node->m3u8_index);
+	snprintf(cmd, 128, M3U8_HEADER, HLS_FRAGMENT, node->m3u8_index);
 	fwrite(cmd, strlen(cmd), 1, m3u8);
 	
 	int i;
