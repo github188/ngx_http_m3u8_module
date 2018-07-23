@@ -162,7 +162,7 @@ static ngx_int_t ngx_http_m3u8_handler(ngx_http_request_t *r) {
 
 	path.len = last - path.data;
 
-	LOGI_print("http m3u8 filename: \"%V\"", &path);
+	LOGI_print("http m3u8 filename: %s", &path.data);
 	
 	rc = ngx_http_default_m3u8(r, path);
 	if(rc != NGX_HTTP_OK){

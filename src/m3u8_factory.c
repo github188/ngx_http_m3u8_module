@@ -11,8 +11,10 @@
 #include "GssLiveConnInterface.h"
 #include "AVPlayer.h"
 
-#define HLS_FRAGMENT 		3
+#define HLS_FRAGMENT 		4	//只用作最大片时长，这个会影响m3u8请求间隔
+#define HLS_TS_REC_LEN 		3	//ts分片时长，不准确，有时间偏差
 #define HLS_KEEPLIVE_SEC 	20
+#define HLS_M3U8_LIST_SIZE 	3
 
 #define M3U8_HEADER "\
 #EXTM3U\r\n\
@@ -22,7 +24,7 @@
 "
 #define M3U8_INFO "\
 #EXT-X-DISCONTINUITY\r\n\
-#EXTINF:%d,\r\n\
+#EXTINF:%.2f,\r\n\
 %s\r\n\
 "
 
@@ -150,6 +152,7 @@ void m3u8_get_current_path(char* cur_path, int size)
 		if(path)
 		{
 			strncpy(cur_path, szPath, path - szPath);
+			cur_path[path - szPath] = '\0';
 		}
 	}
 }
@@ -214,15 +217,16 @@ m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid)
 	node->liveness = 1;
 	strcpy(node->m3u8, uid);
 	strcat(node->m3u8, ".m3u8");
-	node->m3u8_index = 1;
+	node->m3u8_index = 0;
 	cqueue_init(&node->ts_queue);
 
 	//默认的加载视频缓存
 	ts_info_t* info = (ts_info_t*)malloc(sizeof(ts_info_t));
-	info->inf = 10;
+	info->inf = 4.0;
 	strcpy(info->path, "loading_01.ts");
 	cqueue_enqueue(&node->ts_queue, (void *)info);
-	
+
+	pthread_rwlock_init(&node->rwlock, NULL);
 	LOGI_print("uid:%s m3u8:%s",node->uid, node->m3u8);
 	return node;
 }
@@ -232,7 +236,8 @@ void m3u8_node_destory(m3u8_node_t* node)
 	
 	cqueue_clear(&node->ts_queue);
 	cqueue_destory(&node->ts_queue);
-
+    pthread_rwlock_destroy(&node->rwlock);
+	
 	LOGI_print("delete ts file");
 	LOGI_print("delete m3u8 file");
 	char cmd[128] = {0};
@@ -281,7 +286,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	ts_info_t* info = NULL;
 	
 	int size = cqueue_size(&node->ts_queue);
-	if(size >= 4)
+	if(size > HLS_M3U8_LIST_SIZE)
 	{
 		info = (ts_info_t*)cqueue_dequeue(&node->ts_queue);
 		if(strstr(info->path, "loading") == NULL)
@@ -296,43 +301,64 @@ void m3u8_node_update(m3u8_node_t* node)
 	{
 		info = (ts_info_t*)malloc(sizeof(ts_info_t));
 	}
-	info->inf = 10;
+	info->inf = node->timestamp_ref/1000.0;
 	snprintf(cmd, 128, "%s_%d.ts", node->uid, node->fileindex);
 	strcpy(info->path, cmd);
 	
 	//入队新的文件
 	cqueue_enqueue(&node->ts_queue, (void *)info);
-	LOGI_print("info inf:%d path:%s", info->inf, info->path);
+	LOGI_print("info inf:%.2f path:%s", info->inf, info->path);
+
+	int i;
+	float inf = 0.0;
+	//最大时长TARGETDURATION
+	for(i=0; i<size; i++)
+	{
+		info = (ts_info_t*)cqueue_get(&node->ts_queue, i);
+		if(info->inf > inf)
+		{
+			inf = info->inf;
+		}
+	}
 
 	//这里需要做文件读写锁??
+	pthread_rwlock_wrlock(&node->rwlock);//请求写锁
 	snprintf(cmd, 128, "%shtml/hls/%s", node->factory->cur_path, node->m3u8);
 	FILE* m3u8 = fopen(cmd, "wb");
-	
-	snprintf(cmd, 128, M3U8_HEADER, HLS_FRAGMENT, node->m3u8_index);
+
+	snprintf(cmd, 128, M3U8_HEADER, abs(inf+0.5), node->m3u8_index);
 	fwrite(cmd, strlen(cmd), 1, m3u8);
 	
-	int i;
 	size = cqueue_size(&node->ts_queue);
 	for(i=0; i<size; i++)
 	{
 		info = (ts_info_t*)cqueue_get(&node->ts_queue, i);
-		LOGI_print("index:%d info inf:%d path:%s", i, info->inf, info->path);
+		LOGI_print("index:%d info inf:%.2f path:%s", i, info->inf, info->path);
 		snprintf(cmd, 128, M3U8_INFO, info->inf, info->path);
 		fwrite(cmd, strlen(cmd), 1, m3u8);
 	}
+	fflush(m3u8);
 	LOGI_print("ts_queue_size:%d", size);
 	fclose(m3u8);
-	
+	pthread_rwlock_unlock(&node->rwlock);//请求写锁
 }
 
 static long m3u8_node_rec_call_back(long nPort, AVRecEvent eventRec, long lData, long lUserParam)
 {
 	LOGI_print("nPort:%ld, eventRec:%d lData:%ld lUserParam:%ld", nPort, eventRec, lData, lUserParam);
-	if(eventRec == 2 && lData >= HLS_FRAGMENT)
+
+	if(eventRec == 2)
 	{
 		m3u8_node_t* h = (m3u8_node_t*)lUserParam;
-		h->recflush = 1;
-	}
+		if(h->m3u8_index == 0 && lData > 1)	//前几个文件尽量小
+		{
+			h->recflush = 1;
+		}
+		else if(lData >= HLS_TS_REC_LEN)
+		{
+			h->recflush = 1;
+		}
+	}	
 
 	return 0;
 }
@@ -346,17 +372,20 @@ void* m3u8_node_ts_buid_proc(void* args)
 	{				
 		unsigned char* pData = NULL;
 		int datalen;
-		ret = GssLiveConnInterfaceGetVideoFrame(h->glc_index, &pData, &datalen);
+		unsigned int pts;
+		ret = GssLiveConnInterfaceGetVideoFrame(h->glc_index, &pData, &datalen, &pts);
 		if(ret == 0)
 		{
 			GosFrameHead head;
 			memcpy(&head, pData, sizeof(GosFrameHead));
 
-			if(h->recflush == 1 && head.nFrameType == 1)
+			if(h->recflush != 0 && head.nFrameType == 1)
 			{
 				ret = AV_StopRec(h->av_port);
 				if(ret == 0 && h->fileindex != 0)
 				{
+					LOGI_print("pts:%u timestamp_ref:%d", pts, h->timestamp_ref);
+					h->timestamp_ref = pts - h->timestamp_ref;
 					m3u8_node_update(h);
 				}
 				
@@ -365,6 +394,7 @@ void* m3u8_node_ts_buid_proc(void* args)
 				snprintf(filename, 64, "%shtml/hls/%s_%d.ts", h->factory->cur_path, h->uid, h->fileindex);
 				LOGI_print("h->av_port:%d filename:%s", h->av_port, filename);
 				ret = AV_StartRec(h->av_port, filename, (void*)m3u8_node_rec_call_back, (long)h);
+				h->timestamp_ref = pts;
 				h->recflush = 0;
 			}
 					
@@ -376,7 +406,7 @@ void* m3u8_node_ts_buid_proc(void* args)
 		while(h->stop_ts_build != 1)
 		{
 			pData = NULL;
-			ret = GssLiveConnInterfaceGetAudioFrame(h->glc_index, &pData, &datalen);
+			ret = GssLiveConnInterfaceGetAudioFrame(h->glc_index, &pData, &datalen, &pts);
 			if(ret == 0)
 			{
 				ret = AV_PutFrame(h->av_port,pData,datalen, 0);

@@ -4,6 +4,7 @@
 #include "cmap.h"
 #include "cqueue.h"
 #include "lock_utils.h"
+#include <pthread.h>
 
 #ifndef M3U8_MAX_PATH
 #define M3U8_MAX_PATH		4096
@@ -35,6 +36,9 @@ typedef struct m3u8_node
 	int				av_port;
 	int				recflush;
 	int				fileindex;		//所写文件从fileindex=1开始，为0时表示准备开始
+	unsigned int	timestamp_ref;
+	/////////////////////////////////
+	pthread_rwlock_t rwlock;
 }m3u8_node_t;
 
 //public
@@ -51,7 +55,7 @@ void* m3u8_factory_hls_liveness_proc(void* args);
 
 
 typedef struct ts_info{
-	int inf;
+	float inf;
 	char path[64];
 }ts_info_t;
 
