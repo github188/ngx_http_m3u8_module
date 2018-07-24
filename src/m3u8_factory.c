@@ -14,7 +14,7 @@
 #define HLS_FRAGMENT 		4	//只用作最大片时长，这个会影响m3u8请求间隔
 #define HLS_TS_REC_LEN 		3	//ts分片时长，不准确，有时间偏差
 #define HLS_KEEPLIVE_SEC 	20
-#define HLS_M3U8_LIST_SIZE 	3
+#define HLS_M3U8_LIST_SIZE 	4
 
 #define M3U8_HEADER "\
 #EXTM3U\r\n\
@@ -120,7 +120,7 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 		}
 	}
 	else{
-		LOGE_print("uid:%s", uid);
+		LOGW_print("m3u8 already exist, uid:%s", uid);
 	}
 	LOGI_print("hls_map size:%d", cmap_size(&h->hls_map));
 	m3u8_factory_hls_liveness_set(h, uid);
@@ -222,7 +222,7 @@ m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid)
 
 	//默认的加载视频缓存
 	ts_info_t* info = (ts_info_t*)malloc(sizeof(ts_info_t));
-	info->inf = 4.0;
+	info->inf = 3.0;
 	strcpy(info->path, "loading_01.ts");
 	cqueue_enqueue(&node->ts_queue, (void *)info);
 
@@ -286,7 +286,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	ts_info_t* info = NULL;
 	
 	int size = cqueue_size(&node->ts_queue);
-	if(size > HLS_M3U8_LIST_SIZE)
+	if(size >= HLS_M3U8_LIST_SIZE)
 	{
 		info = (ts_info_t*)cqueue_dequeue(&node->ts_queue);
 		if(strstr(info->path, "loading") == NULL)
@@ -350,11 +350,15 @@ static long m3u8_node_rec_call_back(long nPort, AVRecEvent eventRec, long lData,
 	if(eventRec == 2)
 	{
 		m3u8_node_t* h = (m3u8_node_t*)lUserParam;
-		if(h->m3u8_index == 0 && lData > 1)	//前几个文件尽量小
-		{
-			h->recflush = 1;
-		}
-		else if(lData >= HLS_TS_REC_LEN)
+//		if(h->m3u8_index == 0 && lData > 1)	//前几个文件尽量小
+//		{
+//			h->recflush = 1;
+//		}
+//		else if(lData >= HLS_TS_REC_LEN)
+//		{
+//			h->recflush = 1;
+//		}
+		if(lData >= 1)
 		{
 			h->recflush = 1;
 		}

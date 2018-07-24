@@ -7,7 +7,7 @@
 #include <string.h>
 
 
-#define MAX_AV_SIZE	10
+#define MAX_AV_SIZE	45
 
 #pragma   pack(1)
 typedef struct GP2pHead_t
