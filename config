@@ -10,4 +10,5 @@ NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_m3u8_module.c \
 		$ngx_addon_dir/src/cmap.c \
 		$ngx_addon_dir/src/cqueue.c \
 		$ngx_addon_dir/src/lock_utils.c \
+		$ngx_addon_dir/src/inifile.c \
 		$ngx_addon_dir/src/utils_log.c"

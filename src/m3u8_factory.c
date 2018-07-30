@@ -7,7 +7,7 @@
 #include "m3u8_factory.h"
 #include "utils_log.h"
 #include "comm_helper.h"
-
+#include "inifile.h"
 #include "GssLiveConnInterface.h"
 #include "AVPlayer.h"
 
@@ -29,24 +29,32 @@
 "
 
 #define P2P_DISPATCH_ADDR	"cnp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
+#define GSS_CONF_NAME		"gss_globle.conf"
 static m3u8_factory_t* s_m3u8_factory = NULL;
 
 //public
 m3u8_factory_t* m3u8_factory_create()
 {
 	if(s_m3u8_factory == NULL){
+		s_m3u8_factory = (m3u8_factory_t*)malloc(sizeof(m3u8_factory_t));
+		m3u8_get_current_path(s_m3u8_factory->cur_path, sizeof(s_m3u8_factory->cur_path));
+
+		gss_globel_conf_t conf;
+		m3u8_load_config(s_m3u8_factory, &conf);
+		
 		////////////////////////////////////////
-		GssLiveConnInterfaceInit(P2P_DISPATCH_ADDR, ".", 1,"127.0.0.1",3306,"root","goscam66%%DB","rtsp_db",4, 2, 1);
+		GssLiveConnInterfaceInit(conf.server, conf.logpath, conf.loglvl,
+				conf.sqlHost, conf.sqlPort, conf.sqlUser, conf.sqlPasswd, conf.dbName,
+				conf.maxCounts, conf.maxPlayTime, conf.type);
 		AV_Init(0, ".");
 		
 		LOGI_print("start connect p2p server:%s", P2P_DISPATCH_ADDR);
 
-		s_m3u8_factory = (m3u8_factory_t*)malloc(sizeof(m3u8_factory_t));
 		s_m3u8_factory->stop_liveness = 0;
 		s_m3u8_factory->th_liveness = 0;
 		s_m3u8_factory->factory = s_m3u8_factory;
 		cmap_init(&s_m3u8_factory->hls_map);
-		m3u8_get_current_path(s_m3u8_factory->cur_path, sizeof(s_m3u8_factory->cur_path));
+		
 		LOGI_print("cur_path:%s", s_m3u8_factory->cur_path);
 
 		int ret = pthread_create(&s_m3u8_factory->th_liveness, NULL, m3u8_factory_hls_liveness_proc, (void*)s_m3u8_factory);
@@ -445,3 +453,99 @@ void* m3u8_node_ts_buid_proc(void* args)
 	return NULL;
 }
 
+int m3u8_load_config(m3u8_factory_t* h, gss_globel_conf_t* conf)
+{
+//	int read_profile_string( const char *section, const char *key,const char *default_value, char *value, int size,  const char *file);
+//	int read_profile_int( const char *section, const char *key,int default_value, const char *file);
+	char ini_file[128] = {0};
+	char ptemp[128] = {0};
+	int	ret;
+	
+	sprintf( ini_file, "%s%s", h->cur_path, GSS_CONF_NAME);
+	ret = read_profile_string("common", "server", "", ptemp, sizeof(ptemp), ini_file);
+	if(ret == 0 || ptemp[0]=='\0')
+	{
+		LOGM_print("server not set");
+		exit(-1);
+	}
+	else
+	{
+		strcpy(conf->server, ptemp);
+		LOGI_print("server set :%s ", conf->server);
+	}
+
+	ret = read_profile_string("common", "logpath", "logs/", ptemp, sizeof(ptemp), ini_file);
+	if(ret == 0 || ptemp[0]=='\0')
+	{
+		LOGM_print("logpath not set");
+		exit(-1);
+	}
+	else
+	{
+		strcpy(conf->logpath, ptemp);
+		LOGI_print("logpath set :%s ", conf->logpath);
+	}
+
+	conf->loglvl = read_profile_int("common", "loglvl", 1, ini_file);
+	LOGI_print("loglvl set :%d ", conf->loglvl);
+
+	ret = read_profile_string("common", "sqlHost", "", ptemp, sizeof(ptemp), ini_file);
+	if(ret == 0 || ptemp[0]=='\0')
+	{
+		LOGM_print("sqlHost not set");
+		exit(-1);
+	}
+	else
+	{
+		strcpy(conf->sqlHost, ptemp);
+		LOGI_print("sqlHost set :%s ", conf->sqlHost);
+	}
+
+	conf->sqlPort = read_profile_int("common", "sqlPort", 3306, ini_file);
+	LOGI_print("sqlPort set :%d ", conf->sqlPort);
+
+	ret = read_profile_string("common", "sqlUser", "", ptemp, sizeof(ptemp), ini_file);
+	if(ret == 0 || ptemp[0]=='\0')
+	{
+		LOGM_print("sqlUser not set");
+		exit(-1);
+	}
+	else
+	{
+		strcpy(conf->sqlUser, ptemp);
+		LOGI_print("sqlUser set :%s ", conf->sqlUser);
+	}
+
+	ret = read_profile_string("common", "sqlPasswd", "", ptemp, sizeof(ptemp), ini_file);
+	if(ret == 0 || ptemp[0]=='\0')
+	{
+		LOGM_print("sqlPasswd not set");
+		exit(-1);
+	}
+	else
+	{
+		strcpy(conf->sqlPasswd, ptemp);
+		LOGI_print("sqlPasswd set :%s ", conf->sqlPasswd);
+	}
+
+	ret = read_profile_string("common", "dbName", "", ptemp, sizeof(ptemp), ini_file);
+	if(ret == 0 || ptemp[0]=='\0')
+	{
+		LOGM_print("dbName not set");
+		exit(-1);
+	}
+	else
+	{
+		strcpy(conf->dbName, ptemp);
+		LOGI_print("dbName set :%s ", conf->dbName);
+	}
+
+	conf->maxCounts = read_profile_int("common", "maxCounts", 4, ini_file);
+	LOGI_print("maxCounts set :%d ", conf->maxCounts);
+	conf->maxPlayTime = read_profile_int("common", "maxPlayTime", 60, ini_file);
+	LOGI_print("maxPlayTime set :%d ", conf->maxPlayTime);
+	conf->type = read_profile_int("common", "type", 1, ini_file);
+	LOGI_print("type set :%d ", conf->type);
+
+	return 0;
+}

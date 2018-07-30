@@ -19,6 +19,21 @@ typedef struct m3u8_factory_T
 	char			cur_path[M3U8_MAX_PATH];
 }m3u8_factory_t;
 
+typedef struct gss_globel_conf_T
+{
+	char 	server[128];		// gss分派服务器地址
+	char 	logpath[128];		// 日志存放目录
+	int 	loglvl;				// 日志级别
+	char 	sqlHost[64];		// mysql地址，计时数据库
+	int 	sqlPort;			// mysql端口
+	char	sqlUser[64]; 		// mysql用户名
+	char	sqlPasswd[64];		// mysql密码
+	char	dbName[64];			// mysql数据库名
+	int 	maxCounts;			// 连接池中数据库连接的最大数,假设有n个业务线程使用该连接池，建议:maxCounts=n,假设n>20, 建议maxCounts=20
+	int 	maxPlayTime;		// 一天内最大播放时长，单位秒
+	int 	type;				// 类型0:rtsp 1:hls
+}gss_globel_conf_t;
+
 typedef struct m3u8_node
 {
 	m3u8_factory_t* factory;
@@ -80,4 +95,5 @@ int m3u8_node_gss_close(m3u8_node_t* node);
 
 //private
 void* m3u8_node_ts_buid_proc(void* args);
+int m3u8_load_config(m3u8_factory_t* h, gss_globel_conf_t* conf);
 #endif
