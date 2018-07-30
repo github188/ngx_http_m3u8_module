@@ -73,11 +73,10 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 	}
 
 	m3u8_get_current_path(cur_path, sizeof(NGX_MAX_PATH));
-	strcat(cur_path, DEFAULT_M3U8_PATH);
-	LOGI_print("current path===%s", cur_path);
-	
 	if (ngx_link_info(path.data, &fi) == NGX_FILE_ERROR){	//文件不存在
-	
+		strcat(cur_path, DEFAULT_M3U8_PATH);
+		LOGI_print("current path===%s", cur_path);
+		
 		ngx_str_t tmp = ngx_string(cur_path);
 		ngx_link_info(tmp.data, &fi);
 			

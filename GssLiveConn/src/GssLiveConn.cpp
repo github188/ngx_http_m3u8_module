@@ -3,14 +3,86 @@
 //#include "gss_common.h"
 #include "p2p_dispatch.h"
 #include "Log.h"
+#include "tm.h"
+#include "MyuseMysql.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <unistd.h>
 
 bool GssLiveConn::m_isInitedGlobal = false;
+int	 GssLiveConn::m_forceLiveSec = 600;
+
 SGlobalInfo GssLiveConn::m_sGlobalInfos;
+MySqlPool* GssLiveConn::m_smysqlpool = NULL;
+pthread_t GssLiveConn::m_spthread = 0;
+
+#define TABLE_DEVICE_REC "device_rec"
+#define ONE_DAY_SEC (24*60*60)
+
+static bool s_isTimeReset = false;
+static bool IsResetTime()
+{
+	time_t t;
+    struct tm *gmt;
+    t = time(NULL);
+    gmt = gmtime(&t);
+//	printf("sec:%d min:%d hour:%d\n", gmt->tm_sec, gmt->tm_min, gmt->tm_hour);
+	if(gmt->tm_min == 0 && gmt->tm_hour == 0)
+	{
+		if(!s_isTimeReset)
+		{
+			LOG_WARN("it's time to reset!");
+			s_isTimeReset = true;
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	else
+	{
+		s_isTimeReset = false;
+		return false;
+	}
+}
+
+static void* ThreadUpdatePlayTimeToMysql(void *arg)
+{
+//	int nCounts = 1;
+	while (GssLiveConn::m_isInitedGlobal)
+	{
+//		if((nCounts++%30)==0)
+		{
+			GssLiveConn::m_sGlobalInfos.lock.Lock();
+			unsigned int nowTime = now_ms_time()/1000;
+			std::map<std::string,RtspPlayTime>::iterator it = GssLiveConn::m_sGlobalInfos.mapTimes.begin();
+			for ( ; it != GssLiveConn::m_sGlobalInfos.mapTimes.end(); )
+			{
+				int tmpSec = nowTime - it->second.time;
+				it->second.time = nowTime;
+				GssLiveConn::UpdatePlayTime(tmpSec,it->first.c_str());
+				if(it->second.bDel)
+					GssLiveConn::m_sGlobalInfos.mapTimes.erase(it++);
+				else
+					it++;
+			}
+			GssLiveConn::m_sGlobalInfos.lock.Unlock();
+		}
+
+		//如果达到清零时间
+		if(IsResetTime())
+		{//reset all uid time
+			GssLiveConn::ResetPlayTime(NULL,GssLiveConn::GetColByType(),0);
+		}
+		sleep(1);
+	}
+	
+	return (void*)0;
+}
 
 GssLiveConn::GssLiveConn()
 {
@@ -33,6 +105,11 @@ GssLiveConn::GssLiveConn()
 	m_audioType = gos_codec_unknown;
 	m_referenceCount = 0;
 	m_bDroped = false;
+	m_isFirstFrame = true;
+	
+	m_forcePause = false;
+	m_liveRef = 0;
+	m_forceLiveSecLeftTime = GssLiveConn::m_sGlobalInfos.maxPlayTime*60;
 
 	InitVideoBuffer();
 	InitAudioBuffer();
@@ -55,7 +132,11 @@ GssLiveConn::GssLiveConn(const char* server, unsigned short port,const char* uid
 	m_audioType = gos_codec_unknown;
 	m_referenceCount = 0;
 	m_bDroped = false;
-
+	m_isFirstFrame = true;
+	
+	m_forcePause = false;
+	m_liveRef = 0;
+	
 	if(bDispath)
 	{
 		if (server)
@@ -118,7 +199,7 @@ bool GssLiveConn::Init( char* server, unsigned short port, char* uid , bool bDis
 	return busc;
 }
 
-bool GssLiveConn::Start()
+bool GssLiveConn::Start(bool bRestart)
 {
 	bool busc = false;
 	do 
@@ -142,7 +223,7 @@ bool GssLiveConn::Start()
 			break;
 		}
 
-		if(m_dispathPort != 0)
+		if(!bRestart && m_dispathPort != 0)
 		{
 			printf("start request server information");
 			if(!RequestLiveConnServer())
@@ -153,7 +234,18 @@ bool GssLiveConn::Start()
 			}
 		}
 
-		printf("start ip = %s,port = %d,uid = %s\n",m_server,m_port,m_uid);
+		int lefttime = 0;
+		if (IsReachedMaxPlayTimeofDay(GssLiveConn::m_sGlobalInfos.maxPlayTime, m_uid, lefttime))
+		{
+			LOG_ERROR("[GSSLIVECONN] GssLiveConn start failed by reached play time");
+			break;
+		}
+		m_forceLiveSecLeftTime = lefttime;
+
+		if(!AddNewPlayTime(m_uid))
+			LOG_ERROR("Connect new pull connections, add new play time falied!");
+
+//		printf("start ip = %s,port = %d,uid = %s\n",m_server,m_port,m_uid);
 		cfg.server = &m_server[0];
 		cfg.port = m_port;
 		cfg.uid = &m_uid[0];
@@ -183,11 +275,12 @@ bool GssLiveConn::Start()
 	} while (0);
 	if (busc)
 	{
-		LOG_INFO("Gssliveconn start success, server = %s, port = %d, uid = %s",m_server,m_port,m_uid);
+		m_isFirstFrame = true;
+		LOG_INFO("[GSSLIVECONN] Gssliveconn start success, server = %s, port = %d, uid = %s, brestart = %d",m_server,m_port,m_uid,bRestart);
 	}
 	else
 	{
-		LOG_ERROR("Gssliveconn start failed, server = %s, port = %d, uid = %s",m_server,m_port,m_uid);
+		LOG_ERROR("[GSSLIVECONN] Gssliveconn start failed, server = %s, port = %d, uid = %s, brestart = %d",m_server,m_port,m_uid,bRestart);
 	}
 
 	return busc;
@@ -200,6 +293,11 @@ bool GssLiveConn::Stop()
 		gss_client_pull_destroy(m_clientPullConn);
 		m_clientPullConn = NULL;
 		m_isConnected = false;
+		if ( !DelPlayTime(m_uid) )
+		{
+			LOG_ERROR("stop pull connections, add delete play time falied!");
+		}
+		LOG_INFO("[GSSLIVECONN] GssLiveConn::Stop");
 		return true;
 	}
 	return true;
@@ -403,9 +501,9 @@ bool GssLiveConn::AddVideoFrame( unsigned char* pData, int datalen )
 		}
 		m_lockVideo.Lock();
 
+		GosFrameHead *header = (GosFrameHead*)pData;
 		if(m_bDroped)
 		{
-			GosFrameHead *header = (GosFrameHead*)pData;
 			if (header->nFrameType == gos_video_i_frame)
 			{
 				m_bDroped = false;
@@ -413,6 +511,21 @@ bool GssLiveConn::AddVideoFrame( unsigned char* pData, int datalen )
 			else
 			{
 				bContinue = false;
+			}
+		}
+		
+		//开始时间，准备计算时间
+		if(GssLiveConn::m_forceLiveSec > 0 || m_forceLiveSecLeftTime > 0)
+		{
+			if(m_liveRef == 0)
+			{
+				m_liveRef = header->nTimestamp;
+			}
+			else if(int(header->nTimestamp - m_liveRef) > GssLiveConn::m_forceLiveSec*1000 || (int(header->nTimestamp - m_liveRef) > m_forceLiveSecLeftTime*1000))
+			{
+				printf("m_forcePause now\n");
+				m_forcePause = true;//标志，不在添加数据
+				GssLiveConn::DelPlayTime(m_uid);
 			}
 		}
 
@@ -487,6 +600,9 @@ bool GssLiveConn::AddAudioFrame( unsigned char* pData, int datalen )
 
 bool GssLiveConn::AddFrame( unsigned char* pData, int datalen )
 {
+	if(m_forcePause)
+		return false;
+	
 	bool bsuc = false;
 	do 
 	{
@@ -516,7 +632,11 @@ bool GssLiveConn::AddFrame( unsigned char* pData, int datalen )
 		}
 	} while (0);
 
-//	printf("GssliveConn add frame end\n");
+	if (m_isFirstFrame)
+	{
+		m_isFirstFrame = false;
+	}
+
 	return bsuc;
 }
 
@@ -554,6 +674,169 @@ void GssLiveConn::IncAudioNextInsertIndex()
 		m_currNextIndexAudioInsert = 0;
 }
 
+bool GssLiveConn::IsReachedMaxPlayTimeofDay(int theMaxTimeMin, const char* guid, int & leftTimeSec)
+{
+	bool bsuc = false;
+	leftTimeSec = 0;
+	do 
+	{
+		PublicMySql *pSqlp = GssLiveConn::m_smysqlpool->GetConnection();
+		if(pSqlp)
+		{
+			MyuseMysql useSql(pSqlp);
+			int maxSec;
+			unsigned int startMs;
+			int rtsptime;
+			unsigned int nowtimes = now_ms_time()/1000;
+			if (useSql.QueryTimesByGuid(TABLE_DEVICE_REC, guid, maxSec,startMs,GetColByType(),rtsptime))
+			{
+				if (nowtimes - startMs > ONE_DAY_SEC)
+				{
+					if( !useSql.UpdateTimesByGuid(TABLE_DEVICE_REC,guid,0,nowtimes,GetColByType(),0) )
+						LOG_ERROR("INSERT NEW RECORD FAILED, GUID = %s\n",guid);
+					bsuc = false;
+					leftTimeSec = theMaxTimeMin*60;
+				}
+				else
+				{
+					if (maxSec < theMaxTimeMin*60)
+					{
+						bsuc = false;
+						leftTimeSec = theMaxTimeMin*60 - maxSec;
+					}
+					else
+					{
+						LOG_INFO("The %s reached play time of day!",guid);
+						bsuc = true;
+					}
+				}
+			}
+			else
+			{
+				LOG_INFO("The %s reached play time of day, the reason is query mysql failed!",guid);
+				bsuc = true;
+			}
+			
+			GssLiveConn::m_smysqlpool->ReleaseConnection(pSqlp);
+		}
+		else
+		{
+			LOG_INFO("The %s reached play time of day, get sql connection failed!",guid);
+			bsuc = true;
+		}
+
+	} while (false);
+
+	return bsuc;
+}
+
+bool GssLiveConn::UpdatePlayTime(int onceTime, const char* guid)
+{
+	bool bsuc = false;
+	do 
+	{
+		PublicMySql *pSqlp = GssLiveConn::m_smysqlpool->GetConnection();
+		if(pSqlp)
+		{
+			MyuseMysql useSql(pSqlp);
+			int maxSec;
+			unsigned int startt;
+			int rtsptime;
+			if (useSql.QueryTimesByGuid(TABLE_DEVICE_REC, guid, maxSec,startt,GetColByType(),rtsptime))
+			{
+				int insertSec = maxSec + onceTime;
+				rtsptime += onceTime;
+				bsuc = useSql.UpdateTimesByGuid(TABLE_DEVICE_REC, guid, insertSec, 0,GetColByType(), rtsptime);
+			}
+
+			GssLiveConn::m_smysqlpool->ReleaseConnection(pSqlp);
+		}
+		else
+		{
+			LOG_ERROR("GssLiveConn::UpdatePlayTime failed, get sql connection failed!");
+		}
+
+	} while (false);
+
+	return bsuc;
+}
+
+bool GssLiveConn::ResetPlayTime(const char* guid, int nCol, int nColValue)
+{
+	bool bsuc = false;
+	do 
+	{
+		PublicMySql *pSqlp = GssLiveConn::m_smysqlpool->GetConnection();
+		if(pSqlp)
+		{
+			MyuseMysql useSql(pSqlp);
+			unsigned int starttime = now_ms_time()/1000;
+			bsuc = useSql.ResetTimesByGuid(TABLE_DEVICE_REC, guid, 0, starttime, nCol, nColValue);
+			GssLiveConn::m_smysqlpool->ReleaseConnection(pSqlp);
+		}
+		else
+		{
+			LOG_ERROR("GssLiveConn::UpdatePlayTime failed, get sql connection failed!");
+		}
+
+	} while (false);
+
+	return bsuc;
+}
+
+
+bool GssLiveConn::AddNewPlayTime(const char* guid)
+{
+	bool bsuc = true;
+	if (!guid)
+	{
+		bsuc = false;
+	}
+	else
+	{
+		GssLiveConn::m_sGlobalInfos.lock.Lock();
+		RtspPlayTime rtspT;
+		rtspT.time = now_ms_time()/1000;
+		rtspT.bDel = false;
+		GssLiveConn::m_sGlobalInfos.mapTimes.insert(std::map<std::string,RtspPlayTime>::value_type(guid,rtspT));
+		GssLiveConn::m_sGlobalInfos.lock.Unlock();
+	}
+	return bsuc;
+}
+
+bool GssLiveConn::DelPlayTime(const char* guid)
+{
+	bool bsuc = true;
+	if (!guid)
+	{
+		bsuc = false;
+	}
+	else
+	{
+		GssLiveConn::m_sGlobalInfos.lock.Lock();
+		RtspPlayTime rtspT;
+		rtspT.time = now_ms_time()/1000 + 22;	//为了HLS计时，即使客户端端口也要一段时间后才真正删除链接
+		rtspT.bDel = true;
+		std::map<std::string,RtspPlayTime>::iterator it = GssLiveConn::m_sGlobalInfos.mapTimes.find(guid);
+		if (it != GssLiveConn::m_sGlobalInfos.mapTimes.end())
+		{
+			//(*it).second.bDel = true;
+			it->second = rtspT;
+			//GssLiveConn::m_sGlobalInfos.mapTimes.erase(it);
+		}		
+//		GssLiveConn::m_sGlobalInfos.mapTimes.insert(std::map<std::string,unsigned int>::value_type(guid,0));
+		GssLiveConn::m_sGlobalInfos.lock.Unlock();
+	}
+	return bsuc;
+}
+
+bool GssLiveConn::SetForceLiveSec(int sec)
+{
+	printf("m_forceLiveSec:%d\n", sec);
+	GssLiveConn::m_forceLiveSec = sec;
+	return true;
+}
+
 bool GssLiveConn::IsAudioG711AType()
 {
 	return (m_audioType == gos_audio_G711A) || (m_audioType == gos_video_H264_G711);
@@ -569,7 +852,10 @@ bool GssLiveConn::IsKnownAudioType()
 	return IsAudioAacType() || IsAudioG711AType();
 }
 
-bool GssLiveConn::GlobalInit(const char* pserver, const char* plogpath, int loglvl)
+bool GssLiveConn::GlobalInit(	const char* pserver, const char* plogpath, int loglvl, 
+												const char* sqlHost, int sqlPort,
+												const char* sqlUser, const char* sqlPasswd,
+												const char* dbName, int maxCounts, int maxPlayTime, EGSSCONNTYPE type)
 {
 	if(GssLiveConn::m_isInitedGlobal)
 		return true;
@@ -602,6 +888,7 @@ bool GssLiveConn::GlobalInit(const char* pserver, const char* plogpath, int logl
 				GssLiveConn::m_sGlobalInfos.port = atoi(ptr);
 			}
 		}
+		GssLiveConn::m_sGlobalInfos.maxPlayTime = maxPlayTime;
 	}
 	if (plogpath)
 	{
@@ -609,6 +896,31 @@ bool GssLiveConn::GlobalInit(const char* pserver, const char* plogpath, int logl
 		LogInit(GssLiveConn::m_sGlobalInfos.logs,"live555",20000);
 		LogSetLevel(loglvl);
 	}
+	GssLiveConn::m_sGlobalInfos.type = type;
+
+	if(!GssLiveConn::m_smysqlpool)
+	{
+		GssLiveConn::m_smysqlpool = new MySqlPool(sqlHost,sqlPort,sqlUser,sqlPasswd,dbName,maxCounts + 1);
+		if(GssLiveConn::m_smysqlpool == NULL)
+		{
+			LOG_ERROR("Create MysqlPool %s:%d Failed!",sqlHost,sqlPort);
+			return false;
+		}
+		if (GssLiveConn::m_smysqlpool->InitPool(maxCounts) != 0)
+		{
+			LOG_ERROR("Init MysqlPool %s:%d Failed!",sqlHost,sqlPort);
+			return false;
+		}
+	}
+
+	GssLiveConn::m_isInitedGlobal = true;
+	if ( 0 != pthread_create(&GssLiveConn::m_spthread,NULL,ThreadUpdatePlayTimeToMysql, NULL))
+	{
+		LOG_ERROR("create thread ThreadUpdatePlayTimeToMysql failed!");
+		GssLiveConn::m_isInitedGlobal = false;
+		return false;
+	}
+
 	GssLiveConn::m_isInitedGlobal = true;
 	return true;
 }
@@ -616,7 +928,17 @@ bool GssLiveConn::GlobalInit(const char* pserver, const char* plogpath, int logl
 void GssLiveConn::GlobalUnInit()
 {
 	if(GssLiveConn::m_isInitedGlobal)
+	{
 		p2p_uninit();
+		void* status;
+		GssLiveConn::m_isInitedGlobal = false;
+		pthread_join(GssLiveConn::m_spthread,&status);
+		if(GssLiveConn::m_smysqlpool)
+		{
+			delete GssLiveConn::m_smysqlpool;
+			GssLiveConn::m_smysqlpool = NULL;
+		}
+	}
 }
 
 void GssLiveConn::OnDsCallback(void* dispatcher, int status, void* user_data, char* server, unsigned short port, unsigned int server_id)
@@ -666,4 +988,25 @@ bool GssLiveConn::RequestLiveConnServer()
 	m_semt.UnInit();
 	destroy_gss_dispatch_requester(dispatcher);	
 	return bsuc;
+}
+
+int GssLiveConn::GetColByType()
+{
+	int nCol = 0;
+	switch (GssLiveConn::m_sGlobalInfos.type)
+	{
+	case e_gss_conn_type_rtsp:
+		{
+			nCol = e_table_device_rec_col_rtsp;
+		}
+		break;
+	case e_gss_conn_type_hls:
+		{
+			nCol = e_table_device_rec_col_hls;
+		}
+		break;
+	default:
+		nCol = e_table_device_rec_col_rtsp;
+	}
+	return nCol;
 }

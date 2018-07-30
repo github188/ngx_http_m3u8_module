@@ -6,11 +6,16 @@
 GssLiveConn* g_liveConns[MAX_GSSLIVECONNS_SIZE] = {0};
 MyClock *g_lock = NULL;
 
-int GssLiveConnInterfaceInit(const char* pserver, const char* plogpath, int loglvl)
+int GssLiveConnInterfaceInit(const char* pserver, const char* plogpath, int loglvl,
+			const char* sqlHost, int sqlPort, //数据的HOST,PORT
+			const char* sqlUser, const char* sqlPasswd, const char* dbName, //数据库登录用户名和密码,数据库名称，
+			int maxCounts, //连接池中数据库连接的最大数,假设有n个业务线程使用该连接池，建议:maxCounts=n,假设n>20, 建议maxCounts=20
+			int maxPlayTime, //最大播放时长(单位分钟)
+			int type)//EGSSCONNTYPE
 {
 	if(g_lock == NULL)
 		g_lock = new MyClock;
-	return GssLiveConn::GlobalInit(pserver,plogpath,loglvl);
+	return GssLiveConn::GlobalInit(pserver,plogpath,loglvl, sqlHost, sqlPort, sqlUser, sqlPasswd, dbName, maxCounts, maxPlayTime, (EGSSCONNTYPE)type);
 }
 
 void GssLiveConnInterfaceUnInit()
@@ -103,6 +108,29 @@ int GssLiveConnInterfaceDestroy( int glcIndex)
 	else
 	{
 		return GSS_LIVE_CONN_ERROR_INVALID_INDEX;
+	}
+}
+
+int GssLiveConnInterfaceTimeOut(int glcIndex)
+{
+	if (glcIndex >= 0 && glcIndex < MAX_GSSLIVECONNS_SIZE)
+	{
+		int len = 0;
+		unsigned int timestamp = 0;
+		int lefttime;
+		if( g_liveConns[glcIndex]->IsReachedMaxPlayTimeofDay(GssLiveConn::m_sGlobalInfos.maxPlayTime, g_liveConns[glcIndex]->GetGuid(), lefttime))
+		{
+			return 0;
+		}
+		else
+		{
+			printf("lefttime:%d\n", lefttime);
+			return -1;
+		}
+	}
+	else
+	{
+		return 0;
 	}
 }
 

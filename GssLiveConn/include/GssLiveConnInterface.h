@@ -31,7 +31,12 @@ PARAM :
 return :
 			0 -> success, other -> failed.
 */
-int GssLiveConnInterfaceInit(const char* pserver, const char* plogpath, int loglvl);
+int GssLiveConnInterfaceInit(const char* pserver, const char* plogpath, int loglvl,
+			const char* sqlHost, int sqlPort, //数据的HOST,PORT
+			const char* sqlUser, const char* sqlPasswd, const char* dbName, //数据库登录用户名和密码,数据库名称，
+			int maxCounts, //连接池中数据库连接的最大数,假设有n个业务线程使用该连接池，建议:maxCounts=n,假设n>20, 建议maxCounts=20
+			int maxPlayTime, //最大播放时长(单位分钟)
+			int type);
 void GssLiveConnInterfaceUnInit();
 
 
@@ -47,6 +52,8 @@ return :
 */
 int GssLiveConnInterfaceCreate(const char* server, unsigned short port, char* uid, int bDispath);
 int GssLiveConnInterfaceDestroy( int glcIndex);
+
+int GssLiveConnInterfaceTimeOut(int glcIndex);
 
 int GssLiveConnInterfaceGetVideoFrame(int glcIndex, unsigned char** pData, int *datalen, unsigned int *pts);
 void GssLiveConnInterfaceFreeVideoFrame(int glcIndex);

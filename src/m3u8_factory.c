@@ -36,7 +36,7 @@ m3u8_factory_t* m3u8_factory_create()
 {
 	if(s_m3u8_factory == NULL){
 		////////////////////////////////////////
-		GssLiveConnInterfaceInit(P2P_DISPATCH_ADDR, ".", 1);
+		GssLiveConnInterfaceInit(P2P_DISPATCH_ADDR, ".", 1,"127.0.0.1",3306,"root","goscam66%%DB","rtsp_db",4, 2, 1);
 		AV_Init(0, ".");
 		
 		LOGI_print("start connect p2p server:%s", P2P_DISPATCH_ADDR);
@@ -115,12 +115,23 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 			else
 			{
 				LOGW_print("hls_map cmap_insert %s", uid);
-				m3u8_node_gss_open(node);
+				ret = m3u8_node_gss_open(node);
+				if(ret != 0)
+				{
+					LOGE_print("m3u8_node_gss_open error");
+					return -1;
+				}
 			}
 		}
 	}
 	else{
 		LOGW_print("m3u8 already exist, uid:%s", uid);
+		//ÅÐ¶ÏÊ±³¤
+		if(GssLiveConnInterfaceTimeOut(client->glc_index) == 0)
+		{
+			LOGW_print(" GssLiveConnInterfaceTimeOut");
+			return -1;
+		}
 	}
 	LOGI_print("hls_map size:%d", cmap_size(&h->hls_map));
 	m3u8_factory_hls_liveness_set(h, uid);
@@ -251,6 +262,11 @@ int m3u8_node_gss_open(m3u8_node_t* node)
 {
 	LOGI_print("m3u8_node_gss_open");
 	node->glc_index = GssLiveConnInterfaceCreate(NULL, 0 , node->uid, 1);
+	if(node->glc_index < 0)
+	{
+		LOGE_print("GssLiveConnInterfaceCreate error");
+		return -1;
+	}
 	node->av_port = AV_GetPort();
 	node->recflush = 1;
 	node->fileindex = 0;
