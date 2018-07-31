@@ -11,6 +11,7 @@
 #include "GssLiveConnInterface.h"
 #include "AVPlayer.h"
 
+#define HLS_VERSION			"V1.1.2"
 #define HLS_FRAGMENT 		4	//只用作最大片时长，这个会影响m3u8请求间隔
 #define HLS_TS_REC_LEN 		3	//ts分片时长，不准确，有时间偏差
 #define HLS_KEEPLIVE_SEC 	20
@@ -65,6 +66,7 @@ m3u8_factory_t* m3u8_factory_create()
 			LOGE_print(" create thread_turn_dispatch error:%s", strerror(ret));
 			exit(-1);
 		}
+		LOGI_print("s_m3u8_factory create success, %s", HLS_VERSION);
 	}
 
 	return s_m3u8_factory;
@@ -422,8 +424,12 @@ void* m3u8_node_ts_buid_proc(void* args)
 			}
 					
 			ret = AV_PutFrame(h->av_port,pData,datalen, 0);
-//			LOGI_print("datalen:%d ret:%d sWidth:%d sHeight:%d nFrameType:%d", datalen, ret, head.sWidth, head.sHeight, head.nFrameType);
+//			LOGT_print("datalen:%d ret:%d sWidth:%d sHeight:%d nFrameType:%d", datalen, ret, head.sWidth, head.sHeight, head.nFrameType);
 			GssLiveConnInterfaceFreeVideoFrame(h->glc_index);
+		}
+		else
+		{
+			usleep(5*1000);
 		}
 		
 		while(h->stop_ts_build != 1)

@@ -11,7 +11,9 @@
 #include <map>
 #include <string>
 
-#define MAX_AV_SIZE	45
+#define MAX_AV_VIDEO_SIZE	60
+#define MAX_AV_AUDIO_SIZE	100
+
 
 #pragma   pack(1)
 typedef struct GP2pHead_t
@@ -229,13 +231,13 @@ public:
 
 private:
 	MyClock m_lockVideo;
-	GssBuffer* m_bufferVideo[MAX_AV_SIZE];
+	GssBuffer* m_bufferVideo[MAX_AV_VIDEO_SIZE];
 	int m_currNextIndexVideoInsert;
 	int m_countsVideo;
 	int m_curVideoIndex;
 
 	MyClock m_lockAudio;
-	GssBuffer* m_bufferAudio[MAX_AV_SIZE];
+	GssBuffer* m_bufferAudio[MAX_AV_AUDIO_SIZE];
 	int m_currNextIndexAudioInsert;
 	int m_countsAudio;
 	int m_curAudioIndex;
