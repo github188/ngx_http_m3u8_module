@@ -28,9 +28,12 @@
 %s\r\n\
 "
 
-#define P2P_DISPATCH_ADDR	"cnp2p.ulifecam.com:6001" //cnp2p.ulifecam.com:6001
 #define GSS_CONF_NAME		"gss_globle.conf"
 static m3u8_factory_t* s_m3u8_factory = NULL;
+static int s_m3u8_list_size;		//m3u8文件列表长
+static int s_live_sec;				//无请求后的保活时长
+static int s_ts_length;				//ts分片时长，不准确，有时间偏差
+static int s_default_fragment;		//只用作最大片时长，这个会影响m3u8请求间隔
 
 //public
 m3u8_factory_t* m3u8_factory_create()
@@ -48,7 +51,7 @@ m3u8_factory_t* m3u8_factory_create()
 				conf.maxCounts, conf.maxPlayTime, conf.type);
 		AV_Init(0, ".");
 		
-		LOGI_print("start connect p2p server:%s", P2P_DISPATCH_ADDR);
+		LOGI_print("start connect p2p server:%s", conf.server);
 
 		s_m3u8_factory->stop_liveness = 0;
 		s_m3u8_factory->th_liveness = 0;
@@ -220,7 +223,7 @@ void* m3u8_factory_hls_liveness_proc(void* args)
 		if(erase == 1)
 			continue;
 		
-		usleep(HLS_KEEPLIVE_SEC*1000*1000);
+		usleep(s_live_sec*1000*1000);
 	}
 	return NULL;
 }
@@ -241,7 +244,7 @@ m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid)
 
 	//默认的加载视频缓存
 	ts_info_t* info = (ts_info_t*)malloc(sizeof(ts_info_t));
-	info->inf = 3.0;
+	info->inf = s_default_fragment;
 	strcpy(info->path, "loading_01.ts");
 	cqueue_enqueue(&node->ts_queue, (void *)info);
 
@@ -310,7 +313,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	ts_info_t* info = NULL;
 	
 	int size = cqueue_size(&node->ts_queue);
-	if(size >= HLS_M3U8_LIST_SIZE)
+	if(size >= s_m3u8_list_size)
 	{
 		info = (ts_info_t*)cqueue_dequeue(&node->ts_queue);
 		if(strstr(info->path, "loading") == NULL)
@@ -374,15 +377,7 @@ static long m3u8_node_rec_call_back(long nPort, AVRecEvent eventRec, long lData,
 	if(eventRec == 2)
 	{
 		m3u8_node_t* h = (m3u8_node_t*)lUserParam;
-//		if(h->m3u8_index == 0 && lData > 1)	//前几个文件尽量小
-//		{
-//			h->recflush = 1;
-//		}
-//		else if(lData >= HLS_TS_REC_LEN)
-//		{
-//			h->recflush = 1;
-//		}
-		if(lData >= 1)
+		if(lData >= s_ts_length)
 		{
 			h->recflush = 1;
 		}
@@ -547,5 +542,14 @@ int m3u8_load_config(m3u8_factory_t* h, gss_globel_conf_t* conf)
 	conf->type = read_profile_int("common", "type", 1, ini_file);
 	LOGI_print("type set :%d ", conf->type);
 
+	s_m3u8_list_size 	= read_profile_int("hls", "m3u8_list_size", HLS_M3U8_LIST_SIZE, ini_file);
+	LOGI_print("m3u8_list_size set :%d ", s_m3u8_list_size);
+	s_live_sec		 	= read_profile_int("hls", "live_sec", HLS_KEEPLIVE_SEC, ini_file);
+	LOGI_print("live_sec set :%d ", s_live_sec);
+	s_ts_length		 	= read_profile_int("hls", "ts_length", HLS_TS_REC_LEN, ini_file);
+	LOGI_print("ts_length set :%d ", s_ts_length);
+	s_default_fragment	= read_profile_int("hls", "default_fragment", HLS_FRAGMENT, ini_file);
+	LOGI_print("default_fragment set :%d ", s_default_fragment);
+	
 	return 0;
 }
