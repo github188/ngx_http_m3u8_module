@@ -54,6 +54,7 @@ int GssLiveConnInterfaceCreate(const char* server, unsigned short port, char* ui
 int GssLiveConnInterfaceDestroy( int glcIndex);
 
 int GssLiveConnInterfaceTimeOut(int glcIndex);
+int GssLiveConnInterfaceSetForceLiveSec(int sec);
 
 int GssLiveConnInterfaceGetVideoFrame(int glcIndex, unsigned char** pData, int *datalen, unsigned int *pts);
 void GssLiveConnInterfaceFreeVideoFrame(int glcIndex);
@@ -62,7 +63,6 @@ int GssLiveConnInterfaceGetAudioFrame(int glcIndex, unsigned char** pData, int *
 void GssLiveConnInterfaceFreeAudioFrame(int glcIndex);
 
 int GssLiveConnInterfaceGetAudioType(int glcIndex);
-
 #ifdef __cplusplus
 }
 #endif

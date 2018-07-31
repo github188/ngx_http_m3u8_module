@@ -32,6 +32,7 @@ typedef struct gss_globel_conf_T
 	int 	maxCounts;			// 连接池中数据库连接的最大数,假设有n个业务线程使用该连接池，建议:maxCounts=n,假设n>20, 建议maxCounts=20
 	int 	maxPlayTime;		// 一天内最大播放时长，单位秒
 	int 	type;				// 类型0:rtsp 1:hls
+	int		once_live_sec;		// 单次连接最大保活时长，超时会主动断开
 }gss_globel_conf_t;
 
 typedef struct m3u8_node

@@ -50,6 +50,8 @@ m3u8_factory_t* m3u8_factory_create()
 		GssLiveConnInterfaceInit(conf.server, conf.logpath, conf.loglvl,
 				conf.sqlHost, conf.sqlPort, conf.sqlUser, conf.sqlPasswd, conf.dbName,
 				conf.maxCounts, conf.maxPlayTime, conf.type);
+		GssLiveConnInterfaceSetForceLiveSec(conf.once_live_sec);
+		
 		AV_Init(0, ".");
 		
 		LOGI_print("start connect p2p server:%s", conf.server);
@@ -241,7 +243,7 @@ m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid)
 	node->liveness = 1;
 	strcpy(node->m3u8, uid);
 	strcat(node->m3u8, ".m3u8");
-	node->m3u8_index = 0;
+	node->m3u8_index = 1;
 	cqueue_init(&node->ts_queue);
 
 	//默认的加载视频缓存
@@ -547,6 +549,8 @@ int m3u8_load_config(m3u8_factory_t* h, gss_globel_conf_t* conf)
 	LOGI_print("maxPlayTime set :%d ", conf->maxPlayTime);
 	conf->type = read_profile_int("common", "type", 1, ini_file);
 	LOGI_print("type set :%d ", conf->type);
+	conf->once_live_sec = read_profile_int("common", "once_live_sec", 600, ini_file);
+	LOGI_print("once_live_sec set :%d ", conf->once_live_sec);
 
 	s_m3u8_list_size 	= read_profile_int("hls", "m3u8_list_size", HLS_M3U8_LIST_SIZE, ini_file);
 	LOGI_print("m3u8_list_size set :%d ", s_m3u8_list_size);

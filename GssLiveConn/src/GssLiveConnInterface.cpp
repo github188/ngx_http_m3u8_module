@@ -134,6 +134,12 @@ int GssLiveConnInterfaceTimeOut(int glcIndex)
 	}
 }
 
+int GssLiveConnInterfaceSetForceLiveSec(int sec)
+{
+	GssLiveConn::SetForceLiveSec(sec);
+	return 0;
+}
+
 int GssLiveConnInterfaceGetVideoFrame(int glcIndex, unsigned char** pData, int *datalen, unsigned int *pts)
 {
 	if (glcIndex >= 0 && glcIndex < MAX_GSSLIVECONNS_SIZE)
