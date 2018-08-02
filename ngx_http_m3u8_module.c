@@ -99,12 +99,12 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 		}
 	}
 	
-	ngx_http_p2p_data_ask(path);
-	return NGX_HTTP_OK;
+	return ngx_http_p2p_data_ask(path);
 }
 
 ngx_int_t ngx_http_p2p_data_ask(ngx_str_t path)
 {
+	int			ret;
 	u_char* 	p;
 	u_char* 	hls;
 	ngx_int_t 	pl;
@@ -116,9 +116,16 @@ ngx_int_t ngx_http_p2p_data_ask(ngx_str_t path)
 	pl  = (ngx_int_t)(p-hls) - ngx_strlen(dir.data);
 	
 	ngx_snprintf(uid, pl,"%s", hls + ngx_strlen(dir.data));
-	m3u8_factory_hls_open(NULL, (char*)uid);
-	
-	return NGX_HTTP_OK;
+	ret = m3u8_factory_hls_open(NULL, (char*)uid);
+	if(ret != 0)
+	{
+		return NGX_HTTP_NOT_ALLOWED
+	}
+	else
+	{
+		return NGX_HTTP_OK;
+	}
+
 }
 
 /**
