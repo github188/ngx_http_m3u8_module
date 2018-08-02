@@ -29,6 +29,8 @@
 %s\r\n\
 "
 
+#define M3U8_END "#EXT-X-ENDLIST\r\n"
+
 #define GSS_CONF_NAME		"gss_globle.conf"
 static m3u8_factory_t* s_m3u8_factory = NULL;
 static int s_m3u8_list_size;		//m3u8文件列表长
@@ -141,11 +143,13 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 	}
 	else{
 		LOGW_print("m3u8 already exist, uid:%s", uid);
-		//判断时长
+		//判断时长,一次播放时长和一天总时长
 		if(GssLiveConnInterfaceTimeOut(client->glc_index) == 0)
 		{
 			LOGW_print(" GssLiveConnInterfaceTimeOut");
-			return -1;
+			//add M3U8_END
+			m3u8_node_endlist(client);
+			return 0;
 		}
 	}
 	LOGI_print("hls_map size:%d", cmap_size(&h->hls_map));
@@ -309,6 +313,22 @@ int m3u8_node_gss_close(m3u8_node_t* node)
 	GssLiveConnInterfaceDestroy(node->glc_index);
 	
 	return 0;
+}
+
+void m3u8_node_endlist(m3u8_node_t* node)
+{
+	char cmd[128] = {0};
+	pthread_rwlock_wrlock(&node->rwlock);//请求写锁
+	snprintf(cmd, 128, "%shtml/hls/%s", node->factory->cur_path, node->m3u8);
+	FILE* m3u8 = fopen(cmd, "a+");
+
+	snprintf(cmd, 128, "%s", M3U8_END);
+	fwrite(cmd, strlen(cmd), 1, m3u8);
+
+	fflush(m3u8);
+	LOGI_print("end");
+	fclose(m3u8);
+	pthread_rwlock_unlock(&node->rwlock);//请求写锁
 }
 
 void m3u8_node_update(m3u8_node_t* node)

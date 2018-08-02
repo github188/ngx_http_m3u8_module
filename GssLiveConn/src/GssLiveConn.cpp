@@ -674,6 +674,11 @@ void GssLiveConn::IncAudioNextInsertIndex()
 		m_currNextIndexAudioInsert = 0;
 }
 
+bool GssLiveConn::IsReachedOnceMaxPlayTime()
+{
+	return m_forcePause;
+}
+
 bool GssLiveConn::IsReachedMaxPlayTimeofDay(int theMaxTimeMin, const char* guid, int & leftTimeSec)
 {
 	bool bsuc = false;

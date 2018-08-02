@@ -118,7 +118,8 @@ int GssLiveConnInterfaceTimeOut(int glcIndex)
 		int len = 0;
 		unsigned int timestamp = 0;
 		int lefttime;
-		if( g_liveConns[glcIndex]->IsReachedMaxPlayTimeofDay(GssLiveConn::m_sGlobalInfos.maxPlayTime, g_liveConns[glcIndex]->GetGuid(), lefttime))
+		if( g_liveConns[glcIndex]->IsReachedMaxPlayTimeofDay(GssLiveConn::m_sGlobalInfos.maxPlayTime, g_liveConns[glcIndex]->GetGuid(), lefttime)
+			|| g_liveConns[glcIndex]->IsReachedOnceMaxPlayTime())
 		{
 			return 0;
 		}

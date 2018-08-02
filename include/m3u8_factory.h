@@ -95,6 +95,8 @@ int m3u8_node_gss_open(m3u8_node_t* node);
 int m3u8_node_gss_close(m3u8_node_t* node);
 
 //private
+void m3u8_node_endlist(m3u8_node_t* node);
+void m3u8_node_update(m3u8_node_t* node);
 void* m3u8_node_ts_buid_proc(void* args);
 int m3u8_load_config(m3u8_factory_t* h, gss_globel_conf_t* conf);
 #endif

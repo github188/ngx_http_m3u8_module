@@ -196,6 +196,7 @@ public:
 	void FreeAudioFrame();
 	bool Send(unsigned char* pData, int datalen); //备用
 
+	bool IsReachedOnceMaxPlayTime();
 	bool IsReachedMaxPlayTimeofDay(int theMaxTimeMin, const char* guid, int & leftTimeSec);
 	char* GetGuid(){return m_uid;}
 protected:

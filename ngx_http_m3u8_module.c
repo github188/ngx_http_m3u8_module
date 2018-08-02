@@ -72,6 +72,9 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 		return NGX_HTTP_NOT_FOUND;
 	}
 
+	if(ngx_http_p2p_data_ask(path) != NGX_HTTP_OK)
+		return NGX_HTTP_NOT_FOUND;
+	
 	m3u8_get_current_path(cur_path, sizeof(NGX_MAX_PATH));
 	if (ngx_link_info(path.data, &fi) == NGX_FILE_ERROR){	//文件不存在
 		strcat(cur_path, DEFAULT_M3U8_PATH);
@@ -99,7 +102,7 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 		}
 	}
 	
-	return ngx_http_p2p_data_ask(path);
+	return NGX_HTTP_OK;
 }
 
 ngx_int_t ngx_http_p2p_data_ask(ngx_str_t path)
@@ -119,7 +122,7 @@ ngx_int_t ngx_http_p2p_data_ask(ngx_str_t path)
 	ret = m3u8_factory_hls_open(NULL, (char*)uid);
 	if(ret != 0)
 	{
-		return NGX_HTTP_NOT_ALLOWED
+		return NGX_HTTP_NOT_ALLOWED;
 	}
 	else
 	{
@@ -170,7 +173,7 @@ static ngx_int_t ngx_http_m3u8_handler(ngx_http_request_t *r) {
 	
 	rc = ngx_http_default_m3u8(r, path);
 	if(rc != NGX_HTTP_OK){
-		return NGX_HTTP_INTERNAL_SERVER_ERROR;
+		return rc;
 	}
 	
 	clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
