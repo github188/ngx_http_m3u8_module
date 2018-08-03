@@ -820,7 +820,7 @@ bool GssLiveConn::DelPlayTime(const char* guid)
 	{
 		GssLiveConn::m_sGlobalInfos.lock.Lock();
 		RtspPlayTime rtspT;
-		rtspT.time = now_ms_time()/1000 + 22;	//为了HLS计时，即使客户端端口也要一段时间后才真正删除链接
+		rtspT.time = now_ms_time()/1000;
 		rtspT.bDel = true;
 		std::map<std::string,RtspPlayTime>::iterator it = GssLiveConn::m_sGlobalInfos.mapTimes.find(guid);
 		if (it != GssLiveConn::m_sGlobalInfos.mapTimes.end())
