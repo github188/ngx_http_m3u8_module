@@ -115,8 +115,6 @@ int GssLiveConnInterfaceTimeOut(int glcIndex)
 {
 	if (glcIndex >= 0 && glcIndex < MAX_GSSLIVECONNS_SIZE)
 	{
-		int len = 0;
-		unsigned int timestamp = 0;
 		int lefttime;
 		if( g_liveConns[glcIndex]->IsReachedMaxPlayTimeofDay(GssLiveConn::m_sGlobalInfos.maxPlayTime, g_liveConns[glcIndex]->GetGuid(), lefttime)
 			|| g_liveConns[glcIndex]->IsReachedOnceMaxPlayTime())

@@ -9,7 +9,7 @@ extern "C"{
 
 //∫Í∂®“Â
 #define MAX_LOG_BUFSIZE		2048
-#define MAX_LOG_FILESIZE	100*1024
+#define MAX_LOG_FILESIZE	2*1024*1024
 
 
 #define   LOG_EMERG   0

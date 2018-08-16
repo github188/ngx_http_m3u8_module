@@ -209,8 +209,9 @@ void LogToFile(LogLevelOpt level, const char *format, ...)
 	log_cache[len] = 0;
 	
 	if(WriteToFile(log_cache, len) != 0){
-		WriteToScreen(log_cache, len);	
+//		WriteToScreen(log_cache, len);	
 	}	
+	WriteToScreen(log_cache, len);	
 }
 
 void LogToScreen(LogLevelOpt level, const char *format, ...)

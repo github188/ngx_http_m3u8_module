@@ -77,8 +77,17 @@ int log_ctrl_file_copy(log_ctrl* log)
 	int len;
     FILE *in,*out;  
 	char bak[128] = {0};
+	char bak_t[128] = {0};
 
-  	sprintf(bak,"%s.bak",log->file);
+	time_t tCurrentTime;	
+	struct tm *tmnow;
+	time(&tCurrentTime);
+	tmnow = localtime(&tCurrentTime);
+	snprintf(bak_t, 128, "%04d%02d%02d%02d%02d%02d",
+    tmnow->tm_year+1900, tmnow->tm_mon+1, tmnow->tm_mday, tmnow->tm_hour,
+	tmnow->tm_min, tmnow->tm_sec);
+	
+  	sprintf(bak,"%s.%s",log->file, bak_t);
     in = fopen(log->file,"r+");  
     out = fopen(bak,"w+");  
   
@@ -188,7 +197,7 @@ int  log_ctrl_print(log_ctrl* log, int level, char* t, ...)
 			vsprintf(s_log_buffer, fmt, params);
 			va_end(params);
 
-			//log_ctrl_file_write(log, s_log_buffer, strlen(s_log_buffer));
+			log_ctrl_file_write(log, s_log_buffer, strlen(s_log_buffer));
 			
 			printf("!%s%s"NONE,level==LOG_TRACE? "":(level==LOG_DEBUG? LIGHT_GREEN:(level==LOG_INFO? LIGHT_CYAN:(level==LOG_WARN?YELLOW:LIGHT_RED)))
 				, s_log_buffer);

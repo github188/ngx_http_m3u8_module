@@ -33,7 +33,7 @@ bool PublicMySql::Init( const char* host, int port,const char* user, const char*
 	{
 		if (host == NULL || user == NULL || passwd == NULL || dbname == NULL)
 		{
-			LOG_ERROR("input invalid param!host:%s, port:%d, user:%s, dbname:%s \n",host,port,user,dbname);
+			LOG_ERROR("input invalid param!host:%s, port:%d, user:%s, dbname:%s ",host,port,user,dbname);
 			break;
 		}
 		memset(m_host,0,sizeof(m_host));
@@ -50,7 +50,7 @@ bool PublicMySql::Init( const char* host, int port,const char* user, const char*
 		Unlock();
 		if(m_psql == NULL)
 		{
-			LOG_ERROR("mysql_init failed!\n");
+			LOG_ERROR("mysql_init failed!");
 			break;
 		}
 		bsuc = true;
@@ -85,7 +85,7 @@ bool PublicMySql::OpenDb()
 			Unlock();
 			if(m_psql == NULL)
 			{
-				LOG_ERROR("mysql_init failed\n");
+				LOG_ERROR("mysql_init failed");
 				break;
 			}
 		}
@@ -99,12 +99,12 @@ bool PublicMySql::OpenDb()
 		MYSQL* psql = mysql_real_connect(m_psql,m_host,m_user,m_passwd,m_dbname,m_port,NULL,0);
 		if(psql == NULL)
 		{
-			LOG_ERROR("Failed to connect to database : error %s\n",mysql_error(m_psql));
+			LOG_ERROR("Failed to connect to database : error %s",mysql_error(m_psql));
 			break;
 		}
 		if (!mysql_set_character_set(psql, "utf8"))
 		{
-			LOG_ERROR("New client character set: %s\n",mysql_character_set_name(psql));
+			LOG_ERROR("New client character set: %s",mysql_character_set_name(psql));
 		}
 		m_bOpenedDb = true;
 		bsuc = true;
@@ -143,7 +143,7 @@ bool PublicMySql::ExeSql( const char* stmt )
 	m_resultsLock.Lock();
 	m_results.clear();
 	m_resultsLock.Unlock();
-	LOG_INFO("current to execute sql = %s\n",stmt);
+	LOG_INFO("current to execute sql = %s",stmt);
 	if(mysql_real_query(m_psql,stmt,strlen(stmt)) != 0)
 	{
 		LOG_ERROR("mysql_real_query : error %s\n",mysql_error(m_psql));
@@ -151,7 +151,7 @@ bool PublicMySql::ExeSql( const char* stmt )
 	}
 	else
 	{
-		LOG_DEBUG("mysql_real_query execute success!\n");
+		LOG_DEBUG("mysql_real_query execute success!");
 		return true;
 	}
 }
@@ -168,13 +168,13 @@ bool PublicMySql::EnableAutoCommit(bool bEnable)
 		my_bool mode = bEnable;
 		if(mysql_autocommit(m_psql,mode) == 0)	//当mode == 0，关闭mysql的自动提交功能，mysql默认自动提交
 		{
-			LOG_DEBUG("success to disable auto commit!\n");
+			LOG_DEBUG("success to disable auto commit!");
 			m_bEnableAutoCommit = bEnable;
 			return true;
 		}
 		else
 		{
-			LOG_ERROR("Failed to disable auto commit: error %s\n",mysql_error(m_psql));
+			LOG_ERROR("Failed to disable auto commit: error %s",mysql_error(m_psql));
 		}
 	}
 	return false;
@@ -216,9 +216,9 @@ bool PublicMySql::RollbackTransaction()
 		const char *pRollback = "rollback";
 		bSuc = ExeSql(pRollback);
 		if(bSuc)
-			LOG_DEBUG("rollback success!\n");
+			LOG_DEBUG("rollback success!");
 		else
-			LOG_ERROR("rollback failed!\n");
+			LOG_ERROR("rollback failed!");
 	} while (0);
 	return bSuc;
 }
@@ -362,7 +362,7 @@ bool PublicMySql::GetRowsCols( int &nrows, int &ncols )
 		}
 		else // mysql_store_result() should have returned data
 		{
-			LOG_INFO("GetRows Error: %s\n", mysql_error(m_psql));
+			LOG_INFO("GetRows Error: %s", mysql_error(m_psql));
 			bsuc = false;
 		}
 		return bsuc;

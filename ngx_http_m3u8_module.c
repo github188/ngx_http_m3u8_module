@@ -71,9 +71,6 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 	if(ngx_strstr(path.data, "/hls/") == NULL){
 		return NGX_HTTP_NOT_FOUND;
 	}
-
-	if(ngx_http_p2p_data_ask(path) != NGX_HTTP_OK)
-		return NGX_HTTP_NOT_FOUND;
 	
 	m3u8_get_current_path(cur_path, sizeof(NGX_MAX_PATH));
 	if (ngx_link_info(path.data, &fi) == NGX_FILE_ERROR){	//文件不存在
@@ -101,7 +98,10 @@ ngx_int_t ngx_http_default_m3u8(ngx_http_request_t *r, ngx_str_t path)
 			return NGX_HTTP_CONFLICT;
 		}
 	}
-	
+
+	if(ngx_http_p2p_data_ask(path) != NGX_HTTP_OK)
+		return NGX_HTTP_NOT_FOUND;
+		
 	return NGX_HTTP_OK;
 }
 

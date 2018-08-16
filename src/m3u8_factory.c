@@ -32,11 +32,28 @@
 #define M3U8_END "#EXT-X-ENDLIST\r\n"
 
 #define GSS_CONF_NAME		"gss_globle.conf"
-static m3u8_factory_t* s_m3u8_factory = NULL;
+static m3u8_factory_t* 	s_m3u8_factory = NULL;
+static log_ctrl*		s_log_ctrl = NULL;
 static int s_m3u8_list_size;		//m3u8文件列表长
 static int s_live_sec;				//无请求后的保活时长
 static int s_ts_length;				//ts分片时长，不准确，有时间偏差
 static int s_default_fragment;		//只用作最大片时长，这个会影响m3u8请求间隔
+
+void log_filename(char* dir, char* name)
+{
+    if(NULL == name)
+    {
+        LOGE_print("name:%p", name);
+        return;
+    }
+	time_t tCurrentTime;	
+	struct tm *tmnow;
+	time(&tCurrentTime);
+	tmnow = localtime(&tCurrentTime);
+	snprintf(name, 256, "%sm3u8_factory_%04d%02d%02d%02d%02d%02d.txt", dir,
+    tmnow->tm_year+1900, tmnow->tm_mon+1, tmnow->tm_mday, tmnow->tm_hour,
+	tmnow->tm_min, tmnow->tm_sec);
+}
 
 //public
 m3u8_factory_t* m3u8_factory_create()
@@ -47,6 +64,10 @@ m3u8_factory_t* m3u8_factory_create()
 
 		gss_globel_conf_t conf;
 		m3u8_load_config(s_m3u8_factory, &conf);
+
+		char logfile[1024] = {0};
+		log_filename(conf.logpath, logfile);
+		s_log_ctrl = log_ctrl_create(logfile, conf.loglvl, 1);
 		
 		////////////////////////////////////////
 		GssLiveConnInterfaceInit(conf.server, conf.logpath, conf.loglvl,
@@ -56,21 +77,21 @@ m3u8_factory_t* m3u8_factory_create()
 		
 		AV_Init(0, ".");
 		
-		LOGI_print("start connect p2p server:%s", conf.server);
+		CLOGT_print(s_log_ctrl, "start connect p2p server:%s", conf.server);
 
 		s_m3u8_factory->stop_liveness = 0;
 		s_m3u8_factory->th_liveness = 0;
 		s_m3u8_factory->factory = s_m3u8_factory;
 		cmap_init(&s_m3u8_factory->hls_map);
 		
-		LOGI_print("cur_path:%s", s_m3u8_factory->cur_path);
+		CLOGI_print(s_log_ctrl, "cur_path:%s", s_m3u8_factory->cur_path);
 
 		int ret = pthread_create(&s_m3u8_factory->th_liveness, NULL, m3u8_factory_hls_liveness_proc, (void*)s_m3u8_factory);
 		if(ret != 0 ){
-			LOGE_print(" create thread_turn_dispatch error:%s", strerror(ret));
+			CLOGE_print(s_log_ctrl,"create thread_turn_dispatch error:%s", strerror(ret));
 			exit(-1);
 		}
-		LOGI_print("s_m3u8_factory create success, %s", HLS_VERSION);
+		CLOGI_print(s_log_ctrl,"s_m3u8_factory create success, %s", HLS_VERSION);
 	}
 
 	return s_m3u8_factory;
@@ -116,43 +137,43 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 		return -1;
 	if(h == NULL)
 		h = m3u8_factory_create();
-	LOGI_print("h:%p uid:%s", h, uid);
+	CLOGI_print(s_log_ctrl,"h:%p uid:%s", h, uid);
 
 	m3u8_node_t* client = (m3u8_node_t*)cmap_find(&h->hls_map, uid);
 	if(client == NULL){
-		LOGW_print("cmap_find %s error", uid);
+		CLOGW_print(s_log_ctrl,"cmap_find %s error", uid);
 		m3u8_node_t* node = m3u8_node_create(h, uid);
 		if(node != NULL)
 		{
 			int ret = cmap_insert(&h->hls_map, uid, node);
 			if(ret != 0)
 			{
-				LOGW_print("hls_map cmap_insert error %s", uid);
+				CLOGW_print(s_log_ctrl,"hls_map cmap_insert error %s", uid);
 			}
 			else
 			{
-				LOGW_print("hls_map cmap_insert %s", uid);
+				CLOGI_print(s_log_ctrl,"hls_map cmap_insert %s", uid);
 				ret = m3u8_node_gss_open(node);
 				if(ret != 0)
 				{
-					LOGE_print("m3u8_node_gss_open error");
+					CLOGE_print(s_log_ctrl,"m3u8_node_gss_open error");
 					return -1;
 				}
 			}
 		}
 	}
 	else{
-		LOGW_print("m3u8 already exist, uid:%s", uid);
+		CLOGI_print(s_log_ctrl,"m3u8 already exist, uid:%s", uid);
 		//判断时长,一次播放时长和一天总时长
 		if(GssLiveConnInterfaceTimeOut(client->glc_index) == 0)
 		{
-			LOGW_print(" GssLiveConnInterfaceTimeOut");
+			CLOGW_print(s_log_ctrl," GssLiveConnInterfaceTimeOut");
 			//add M3U8_END
 			m3u8_node_endlist(client);
 			return 0;
 		}
 	}
-	LOGI_print("hls_map size:%d", cmap_size(&h->hls_map));
+	CLOGI_print(s_log_ctrl,"hls_map size:%d", cmap_size(&h->hls_map));
 	m3u8_factory_hls_liveness_set(h, uid);
 	
 	return 0;
@@ -177,7 +198,7 @@ void m3u8_get_current_path(char* cur_path, int size)
 	char szPath[M3U8_MAX_PATH] = {0};
 	if(readlink("/proc/self/exe", szPath, M3U8_MAX_PATH))
 	{
-		LOGI_print("szPath:%s", szPath);
+		CLOGI_print(s_log_ctrl,"szPath:%s", szPath);
 		path = strstr(szPath, "sbin");
 		if(path)
 		{
@@ -189,7 +210,7 @@ void m3u8_get_current_path(char* cur_path, int size)
 
 //private
 int m3u8_factory_hls_liveness_set(m3u8_factory_t* h, char* uid){
-	LOGI_print("uid:%s", uid);
+	CLOGI_print(s_log_ctrl,"uid:%s", uid);
 	m3u8_node_t* client = (m3u8_node_t*)cmap_find(&h->hls_map, uid);
 	if(client != NULL)
 		client->liveness = 1;
@@ -203,7 +224,7 @@ void* m3u8_factory_hls_liveness_proc(void* args)
 	m3u8_factory_t* h = (m3u8_factory_t*)args;
 	while(h->stop_liveness != 1)
 	{
-		LOGI_print("hls_map size:%d", cmap_size(&h->hls_map));
+		CLOGI_print(s_log_ctrl,"hls_map size:%d", cmap_size(&h->hls_map));
 		int erase = 0;
 		int size = cmap_size(&h->hls_map);
 		for(i=0; i<size; i++)
@@ -216,12 +237,12 @@ void* m3u8_factory_hls_liveness_proc(void* args)
 
 			if(client->liveness == 1)
 			{
-				LOGI_print("live hls set liveness = 0");
+				CLOGI_print(s_log_ctrl,"live hls set liveness = 0");
 				client->liveness = 0;
 			}
 			else
 			{
-				LOGI_print("TODO: close this node");
+				CLOGI_print(s_log_ctrl,"TODO: close this node");
 				m3u8_node_destory(client);
 				cmap_erase(&h->hls_map, mnode->key);
 				erase = 1;
@@ -257,7 +278,7 @@ m3u8_node_t* m3u8_node_create(m3u8_factory_t* h, char* uid)
 	cqueue_enqueue(&node->ts_queue, (void *)info);
 
 	pthread_rwlock_init(&node->rwlock, NULL);
-	LOGI_print("uid:%s m3u8:%s",node->uid, node->m3u8);
+	CLOGI_print(s_log_ctrl,"uid:%s m3u8:%s",node->uid, node->m3u8);
 	return node;
 }
 void m3u8_node_destory(m3u8_node_t* node)
@@ -268,8 +289,8 @@ void m3u8_node_destory(m3u8_node_t* node)
 	cqueue_destory(&node->ts_queue);
     pthread_rwlock_destroy(&node->rwlock);
 	
-	LOGI_print("delete ts file");
-	LOGI_print("delete m3u8 file");
+	CLOGW_print(s_log_ctrl,"delete ts file");
+	CLOGW_print(s_log_ctrl,"delete m3u8 file");
 	char cmd[128] = {0};
 	snprintf(cmd, 128, "rm -rf %shtml/hls/%s*", node->factory->cur_path, node->uid);
 	exec_cmd(cmd);
@@ -283,7 +304,7 @@ int m3u8_node_gss_open(m3u8_node_t* node)
 	node->glc_index = GssLiveConnInterfaceCreate(NULL, 0 , node->uid, 1);
 	if(node->glc_index < 0)
 	{
-		LOGE_print("GssLiveConnInterfaceCreate error");
+		CLOGE_print(s_log_ctrl,"GssLiveConnInterfaceCreate error");
 		return -1;
 	}
 	node->av_port = AV_GetPort();
@@ -294,7 +315,7 @@ int m3u8_node_gss_open(m3u8_node_t* node)
 	LOGI_print("gss connect p2p, start recv thread, thread write ts file");
 	int ret = pthread_create(&node->ht_ts_build, NULL, m3u8_node_ts_buid_proc, (void*)node);
 	if(ret != 0 ){
-		LOGE_print(" create thread_turn_dispatch error:%s", strerror(ret));
+		CLOGE_print(s_log_ctrl," create thread_turn_dispatch error:%s", strerror(ret));
 		exit(-1);
 	}
 		
@@ -303,7 +324,7 @@ int m3u8_node_gss_open(m3u8_node_t* node)
 
 int m3u8_node_gss_close(m3u8_node_t* node)
 {
-	LOGI_print("m3u8_node_gss_close");
+	CLOGI_print(s_log_ctrl,"m3u8_node_gss_close");
 	if(node->ht_ts_build != 0)
 	{
 		node->stop_ts_build = 1;
@@ -358,7 +379,7 @@ void m3u8_node_update(m3u8_node_t* node)
 	
 	//入队新的文件
 	cqueue_enqueue(&node->ts_queue, (void *)info);
-	LOGI_print("info inf:%.2f path:%s", info->inf, info->path);
+	CLOGI_print(s_log_ctrl,"info inf:%.2f path:%s", info->inf, info->path);
 
 	int i;
 	float inf = 0.0;
@@ -384,19 +405,19 @@ void m3u8_node_update(m3u8_node_t* node)
 	for(i=0; i<size; i++)
 	{
 		info = (ts_info_t*)cqueue_get(&node->ts_queue, i);
-		LOGI_print("index:%d info inf:%.2f path:%s", i, info->inf, info->path);
+		CLOGT_print(s_log_ctrl,"index:%d info inf:%.2f path:%s", i, info->inf, info->path);
 		snprintf(cmd, 128, M3U8_INFO, info->inf, info->path);
 		fwrite(cmd, strlen(cmd), 1, m3u8);
 	}
 	fflush(m3u8);
-	LOGI_print("ts_queue_size:%d", size);
+	CLOGI_print(s_log_ctrl,"ts_queue_size:%d", size);
 	fclose(m3u8);
 	pthread_rwlock_unlock(&node->rwlock);//请求写锁
 }
 
 static long m3u8_node_rec_call_back(long nPort, AVRecEvent eventRec, long lData, long lUserParam)
 {
-	LOGI_print("nPort:%ld, eventRec:%d lData:%ld lUserParam:%ld", nPort, eventRec, lData, lUserParam);
+	CLOGT_print(s_log_ctrl,"nPort:%ld, eventRec:%d lData:%ld lUserParam:%ld", nPort, eventRec, lData, lUserParam);
 
 	if(eventRec == 2)
 	{
@@ -431,7 +452,7 @@ void* m3u8_node_ts_buid_proc(void* args)
 				ret = AV_StopRec(h->av_port);
 				if(ret == 0 && h->fileindex != 0)
 				{
-					LOGI_print("pts:%u timestamp_ref:%d", pts, h->timestamp_ref);
+					CLOGI_print(s_log_ctrl,"pts:%u timestamp_ref:%d", pts, h->timestamp_ref);
 					h->timestamp_ref = pts - h->timestamp_ref;
 					m3u8_node_update(h);
 				}
@@ -439,7 +460,7 @@ void* m3u8_node_ts_buid_proc(void* args)
 				h->fileindex++;
 				char filename[64] = {0};
 				snprintf(filename, 64, "%shtml/hls/%s_%d.ts", h->factory->cur_path, h->uid, h->fileindex);
-				LOGI_print("h->av_port:%d filename:%s", h->av_port, filename);
+				CLOGI_print(s_log_ctrl,"h->av_port:%d filename:%s", h->av_port, filename);
 				ret = AV_StartRec(h->av_port, filename, (void*)m3u8_node_rec_call_back, (long)h);
 				h->timestamp_ref = pts;
 				h->recflush = 0;

@@ -76,6 +76,7 @@ static void* ThreadUpdatePlayTimeToMysql(void *arg)
 		//如果达到清零时间
 		if(IsResetTime())
 		{//reset all uid time
+			LOG_INFO("time to ResetPlayTime");
 			GssLiveConn::ResetPlayTime(NULL,GssLiveConn::GetColByType(),0);
 		}
 		sleep(1);
@@ -117,7 +118,7 @@ GssLiveConn::GssLiveConn()
 
 GssLiveConn::GssLiveConn(const char* server, unsigned short port,const char* uid , bool bDispath)
 {
-	printf("GssLiveConn::GssLiveConn start\n");
+	LOG_INFO("GssLiveConn::GssLiveConn start");
 	m_isConnected = false;
 	m_clientPullConn = NULL;
 	m_stusRlt = 0;
@@ -158,17 +159,17 @@ GssLiveConn::GssLiveConn(const char* server, unsigned short port,const char* uid
 
 	InitVideoBuffer();
 	InitAudioBuffer();
-	printf("GssLiveConn::GssLiveConn end\n");
-	LOG_DEBUG("new GssLiveConn ,server = %s, uid = %s, port = %d, bDispath = %d\n",server, uid, port, bDispath);
+
+	LOG_DEBUG("new GssLiveConn ,server = %s, uid = %s, port = %d, bDispath = %d",server, uid, port, bDispath);
 }
 
 GssLiveConn::~GssLiveConn()
 {
-	printf("start GssLiveConn::~GssLiveConn()\n");
+	LOG_INFO("start GssLiveConn::~GssLiveConn()");
 	Stop();
 	ClearVideoBuffer();
 	ClearAudioBuffer();
-	printf("end GssLiveConn::~GssLiveConn()\n");
+	LOG_INFO("end GssLiveConn::~GssLiveConn()");
 }
 
 bool GssLiveConn::Init( char* server, unsigned short port, char* uid , bool bDispath)
@@ -178,7 +179,7 @@ bool GssLiveConn::Init( char* server, unsigned short port, char* uid , bool bDis
 	{
 		if(server == NULL || uid == NULL || port == 0)
 		{
-			LOG_ERROR("GssLiveConn::Init Failed, server = %s, uid = %s, port = %d, bDispath = %d\n",server, uid, port, bDispath);
+			LOG_ERROR("GssLiveConn::Init Failed, server = %s, uid = %s, port = %d, bDispath = %d",server, uid, port, bDispath);
 			break;
 		}
 		if(bDispath)
@@ -192,7 +193,7 @@ bool GssLiveConn::Init( char* server, unsigned short port, char* uid , bool bDis
 			m_port = port;
 		}
 		strcpy(m_uid,uid);
-		LOG_DEBUG("GssLiveConn::Init success,server = %s, uid = %s, port = %d, bDispath = %d\n",server, uid, port, bDispath);
+		LOG_DEBUG("GssLiveConn::Init success,server = %s, uid = %s, port = %d, bDispath = %d",server, uid, port, bDispath);
 		busc = true;
 	} while (0);
 
@@ -210,25 +211,23 @@ bool GssLiveConn::Start(bool bRestart)
 
 		if(!m_isInitedGlobal)
 		{
-			printf("don't init global informations!\n");
-			throw "don't init global informations!\n";
+			LOG_ERROR("don't init global informations!");
+			throw "don't init global informations!";
 			break;
 		}
 
 		if(m_clientPullConn)
 		{
-			printf("client pull connection is not null");
-			LOG_DEBUG("client pull connection is not null ,start success, m_clientPullConn = %p",m_clientPullConn);
+			LOG_INFO("client pull connection is not null ,start success, m_clientPullConn = %p",m_clientPullConn);
 			busc = true;
 			break;
 		}
 
 		if(!bRestart && m_dispathPort != 0)
 		{
-			printf("start request server information");
+			LOG_INFO("start request server information");
 			if(!RequestLiveConnServer())
 			{
-				printf("request server infromation failed!");
 				LOG_ERROR("GssLiveConn start failed by request server");
 				break;
 			}
@@ -261,7 +260,6 @@ bool GssLiveConn::Start(bool bRestart)
 		m_stusRlt = result;
 		if(result != 0)
 		{
-			printf("client_pull_connect_server return %d", result);
 			LOG_ERROR("client_pull_connect_server return %d",result);
 			m_isConnected = false;
 			break;
@@ -367,7 +365,7 @@ void GssLiveConn::OnRecv( void *transport, void *user_data, char* data, int len,
 
 void GssLiveConn::OnDisconnect( void *transport, void* user_data, int status )
 {
-	printf("GssLiveConn::OnDisconnect\n");
+	LOG_INFO("GssLiveConn::OnDisconnect\n");
 	GssLiveConn* pConn = (GssLiveConn*)user_data;
 	if(pConn)
 	{
@@ -384,7 +382,7 @@ void GssLiveConn::OnDisconnect( void *transport, void* user_data, int status )
 
 void GssLiveConn::OnConnectResult( void *transport, void* user_data, int status )
 {
-	printf("GssLiveConn::OnConnectResult ,status = %d\n",status);
+	LOG_INFO("GssLiveConn::OnConnectResult ,status = %d",status);
 	GssLiveConn* pConn = (GssLiveConn*)user_data;
 	if(pConn)
 	{
@@ -402,7 +400,7 @@ void GssLiveConn::OnConnectResult( void *transport, void* user_data, int status 
 	}
 	else
 	{
-		LOG_ERROR("GssLiveConn::OnConnectResult ,status = %d, conn = %p\n",status,user_data);
+		LOG_ERROR("GssLiveConn::OnConnectResult ,status = %d, conn = %p",status,user_data);
 	}
 }
 
@@ -412,12 +410,12 @@ void GssLiveConn::OnDeviceDisconnect( void *transport, void *user_data )
 	GssLiveConn* pConn = (GssLiveConn*)user_data;
 	if(pConn)
 	{
-		LOG_INFO("GssLiveConn::OnDeviceDisconnect , conn = %p, uid = %s\n", user_data,pConn->m_uid);
+		LOG_INFO("GssLiveConn::OnDeviceDisconnect , conn = %p, uid = %s", user_data,pConn->m_uid);
 		pConn->Stop();
 	}
 	else
 	{
-		LOG_ERROR("GssLiveConn::OnDeviceDisconnect , transport = %p, conn = %p\n", transport, user_data);
+		LOG_ERROR("GssLiveConn::OnDeviceDisconnect , transport = %p, conn = %p", transport, user_data);
 	}
 }
 
@@ -523,7 +521,7 @@ bool GssLiveConn::AddVideoFrame( unsigned char* pData, int datalen )
 			}
 			else if(int(header->nTimestamp - m_liveRef) > GssLiveConn::m_forceLiveSec*1000 || (int(header->nTimestamp - m_liveRef) > m_forceLiveSecLeftTime*1000))
 			{
-				printf("m_forcePause now\n");
+				LOG_INFO("m_forcePause now");
 				m_forcePause = true;//标志，不在添加数据
 				GssLiveConn::DelPlayTime(m_uid);
 			}
@@ -698,7 +696,7 @@ bool GssLiveConn::IsReachedMaxPlayTimeofDay(int theMaxTimeMin, const char* guid,
 				if (nowtimes - startMs > ONE_DAY_SEC)
 				{
 					if( !useSql.UpdateTimesByGuid(TABLE_DEVICE_REC,guid,0,nowtimes,GetColByType(),0) )
-						LOG_ERROR("INSERT NEW RECORD FAILED, GUID = %s\n",guid);
+						LOG_ERROR("INSERT NEW RECORD FAILED, GUID = %s",guid);
 					bsuc = false;
 					leftTimeSec = theMaxTimeMin*60;
 				}
@@ -837,7 +835,7 @@ bool GssLiveConn::DelPlayTime(const char* guid)
 
 bool GssLiveConn::SetForceLiveSec(int sec)
 {
-	printf("m_forceLiveSec:%d\n", sec);
+	LOG_INFO("m_forceLiveSec:%d", sec);
 	GssLiveConn::m_forceLiveSec = sec;
 	return true;
 }
@@ -951,7 +949,7 @@ void GssLiveConn::OnDsCallback(void* dispatcher, int status, void* user_data, ch
 	GssLiveConn* pThis = (GssLiveConn*)user_data;
 	if(status == P2P_SUCCESS)
 	{
-		printf("get server on dscallback ok, %s:%d",server,port);
+		LOG_INFO("get server on dscallback ok, %s:%d",server,port);
 		if(pThis)
 		{
 			strcpy(pThis->m_server,server);
@@ -960,7 +958,6 @@ void GssLiveConn::OnDsCallback(void* dispatcher, int status, void* user_data, ch
 	}
 	else
 	{
-		printf("ds_callback failed, gssliveconn = %p, %d\r\n", user_data , status);
 		LOG_ERROR("GssLiveConn::OnDsCallback dispatch = %p, status = %d, user_data = %p, server = %s, port = %d, server_id = %d",dispatcher,status,user_data,server,port,server_id);
 	}
 	if (pThis)

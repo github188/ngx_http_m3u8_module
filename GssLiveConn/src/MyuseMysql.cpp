@@ -80,7 +80,7 @@ bool MyuseMysql::QueryTimesByGuid(const char* tablename, const char* guid, int &
 	{
 		if (tablename  == NULL || guid == NULL || nCol < 0 || nCol >= e_table_device_rec_col_counts)
 		{
-			LOG_ERROR("MyuseMysql::QueryTimesByGuid invalid params!, tablename = %s, guid = %s\n",tablename, guid);
+			LOG_ERROR("MyuseMysql::QueryTimesByGuid invalid params!, tablename = %s, guid = %s",tablename, guid);
 			break;
 		}
 
@@ -111,7 +111,7 @@ bool MyuseMysql::QueryTimesByGuid(const char* tablename, const char* guid, int &
 		else
 		{
 			//没有该记录，就更新一条记录到数据里面
-			LOG_ERROR("Query From db success,but no result,exe sql = %s\n",pSql);
+			LOG_ERROR("Query From db success,but no result,exe sql = %s",pSql);
 			timeSec = 0;
 			nColValue = 0;
 			starttime = now_ms_time()/1000;
@@ -133,7 +133,7 @@ bool MyuseMysql::ResetTimesByGuid(const char* tablename, const char* guid, int t
 	{
 		if (tablename  == NULL || nCol < 0 || nCol >= e_table_device_rec_col_counts)
 		{
-			LOG_ERROR("MyuseMysql::QueryTimesByGuid invalid params!, tablename = %s, guid = %s\n",tablename, guid);
+			LOG_ERROR("MyuseMysql::QueryTimesByGuid invalid params!, tablename = %s, guid = %s",tablename, guid);
 			break;
 		}
 
@@ -197,7 +197,7 @@ bool MyuseMysql::UpdateTimesByGuid(const char* tablename, const char* guid, int 
 	{
 		if (tablename  == NULL || guid == NULL || nCol < 0 || nCol >= e_table_device_rec_col_counts)
 		{
-			LOG_ERROR("MyuseMysql::QueryTimesByGuid invalid params!, tablename = %s, guid = %s\n",tablename, guid);
+			LOG_ERROR("MyuseMysql::QueryTimesByGuid invalid params!, tablename = %s, guid = %s",tablename, guid);
 			break;
 		}
 
@@ -238,7 +238,7 @@ bool MyuseMysql::UpdateTimesByGuid(const char* tablename, const char* guid, int 
 		else
 		{
 			//更新记录失败,没有该记录，就插入一条记录到数据里面
-			LOG_ERROR("Update to db success,but no result,exe sql = %s\n",pSql);
+			LOG_ERROR("Update to db success,but no result,exe sql = %s",pSql);
 			break;
 		}
 
@@ -254,7 +254,7 @@ bool MyuseMysql::InsertTimesByGuid(const char* tablename, const char* guid, int 
 	{
 		if (tablename  == NULL || guid == NULL || nCol < 0 || nCol >= e_table_device_rec_col_counts)
 		{
-			LOG_ERROR("MyuseMysql::InsertTimesByGuid invalid params!, tablename = %s, guid = %s\n",tablename, guid);
+			LOG_ERROR("MyuseMysql::InsertTimesByGuid invalid params!, tablename = %s, guid = %s",tablename, guid);
 			break;
 		}
 
@@ -280,7 +280,7 @@ bool MyuseMysql::InsertTimesByGuid(const char* tablename, const char* guid, int 
 		else
 		{
 			//更新记录失败,没有该记录，就插入一条记录到数据里面
-			LOG_ERROR("Insert into db success,but no result,exe sql = %s\n",pSql);
+			LOG_ERROR("Insert into db success,but no result,exe sql = %s",pSql);
 			break;
 		}
 
