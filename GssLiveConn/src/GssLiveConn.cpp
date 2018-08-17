@@ -819,6 +819,14 @@ bool GssLiveConn::DelPlayTime(const char* guid)
 		GssLiveConn::m_sGlobalInfos.lock.Lock();
 		RtspPlayTime rtspT;
 		rtspT.time = now_ms_time()/1000;
+
+		//22? 这个是HLS超时销毁node的时长， 为了HLS计时，即使客户端端口也要一段时间后才真正删除链接
+		if(!m_forcePause) 
+		{	
+			LOG_WARN("HLS timeout, add hlsDelayDelTime");
+			rtspT.time += GssLiveConn::m_sGlobalInfos.hlsDelayDelTime;
+		}
+		
 		rtspT.bDel = true;
 		std::map<std::string,RtspPlayTime>::iterator it = GssLiveConn::m_sGlobalInfos.mapTimes.find(guid);
 		if (it != GssLiveConn::m_sGlobalInfos.mapTimes.end())
@@ -858,7 +866,7 @@ bool GssLiveConn::IsKnownAudioType()
 bool GssLiveConn::GlobalInit(	const char* pserver, const char* plogpath, int loglvl, 
 												const char* sqlHost, int sqlPort,
 												const char* sqlUser, const char* sqlPasswd,
-												const char* dbName, int maxCounts, int maxPlayTime, EGSSCONNTYPE type)
+												const char* dbName, int maxCounts, int maxPlayTime, int hlsDelayDelTime, EGSSCONNTYPE type)
 {
 	if(GssLiveConn::m_isInitedGlobal)
 		return true;
@@ -892,6 +900,7 @@ bool GssLiveConn::GlobalInit(	const char* pserver, const char* plogpath, int log
 			}
 		}
 		GssLiveConn::m_sGlobalInfos.maxPlayTime = maxPlayTime;
+		GssLiveConn::m_sGlobalInfos.hlsDelayDelTime = hlsDelayDelTime;
 	}
 	if (plogpath)
 	{

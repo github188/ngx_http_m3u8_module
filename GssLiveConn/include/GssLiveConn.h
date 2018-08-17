@@ -158,6 +158,7 @@ typedef struct _globalInfo {
 	unsigned short port;
 	char logs[1024];
 	int maxPlayTime;
+	int hlsDelayDelTime;
 	MyClock lock;
 	std::map<std::string,RtspPlayTime> mapTimes;
 	EGSSCONNTYPE type;
@@ -170,6 +171,7 @@ public:
 										const char* sqlUser, const char* sqlPasswd, const char* dbName, //数据库登录用户名和密码,数据库名称，
 										int maxCounts, //连接池中数据库连接的最大数,假设有n个业务线程使用该连接池，建议:maxCounts=n,假设n>20, 建议maxCounts=20
 										int maxPlayTime, //最大播放时长(单位分钟)
+										int hlsDelayDelTime, //hls超时删除node的时长
 										EGSSCONNTYPE type = e_gss_conn_type_hls); //type,
 	static void GlobalUnInit();
 	static bool SetForceLiveSec(int sec);

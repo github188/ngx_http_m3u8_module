@@ -72,7 +72,7 @@ m3u8_factory_t* m3u8_factory_create()
 		////////////////////////////////////////
 		GssLiveConnInterfaceInit(conf.server, conf.logpath, conf.loglvl,
 				conf.sqlHost, conf.sqlPort, conf.sqlUser, conf.sqlPasswd, conf.dbName,
-				conf.maxCounts, conf.maxPlayTime, conf.type);
+				conf.maxCounts, conf.maxPlayTime, s_live_sec, conf.type);
 		GssLiveConnInterfaceSetForceLiveSec(conf.once_live_sec);
 		
 		AV_Init(0, ".");
@@ -156,7 +156,7 @@ int m3u8_factory_hls_open(m3u8_factory_t* h, char* uid)
 				ret = m3u8_node_gss_open(node);
 				if(ret != 0)
 				{
-					CLOGE_print(s_log_ctrl,"m3u8_node_gss_open error");
+					CLOGE_print(s_log_ctrl,"m3u8_node_gss_open %s error", uid);
 					return -1;
 				}
 			}
@@ -304,7 +304,7 @@ int m3u8_node_gss_open(m3u8_node_t* node)
 	node->glc_index = GssLiveConnInterfaceCreate(NULL, 0 , node->uid, 1);
 	if(node->glc_index < 0)
 	{
-		CLOGE_print(s_log_ctrl,"GssLiveConnInterfaceCreate error");
+		CLOGE_print(s_log_ctrl,"GssLiveConnInterfaceCreate %s error", node->uid);
 		return -1;
 	}
 	node->av_port = AV_GetPort();
@@ -331,6 +331,8 @@ int m3u8_node_gss_close(m3u8_node_t* node)
 		pthread_join(node->ht_ts_build, NULL);
 		node->ht_ts_build = 0;
 	}
+
+	//如果是非超时关闭，则要把超时计算的时间恢复
 	GssLiveConnInterfaceDestroy(node->glc_index);
 	
 	return 0;
@@ -354,7 +356,7 @@ void m3u8_node_endlist(m3u8_node_t* node)
 
 void m3u8_node_update(m3u8_node_t* node)
 {
-	char cmd[128] = {0};
+	char cmd[256] = {0};
 	ts_info_t* info = NULL;
 	
 	int size = cqueue_size(&node->ts_queue);
@@ -364,7 +366,7 @@ void m3u8_node_update(m3u8_node_t* node)
 		if(strstr(info->path, "loading") == NULL)
 		{
 			//删除这个文件
-			snprintf(cmd, 128, "rm -rf %shtml/hls/%s", node->factory->cur_path, info->path);
+			snprintf(cmd, 256, "rm -rf %shtml/hls/%s", node->factory->cur_path, info->path);
 			exec_cmd(cmd);
 		}
 		node->m3u8_index++;
@@ -458,8 +460,8 @@ void* m3u8_node_ts_buid_proc(void* args)
 				}
 				
 				h->fileindex++;
-				char filename[64] = {0};
-				snprintf(filename, 64, "%shtml/hls/%s_%d.ts", h->factory->cur_path, h->uid, h->fileindex);
+				char filename[256] = {0};
+				snprintf(filename, 256, "%shtml/hls/%s_%d.ts", h->factory->cur_path, h->uid, h->fileindex);
 				CLOGI_print(s_log_ctrl,"h->av_port:%d filename:%s", h->av_port, filename);
 				ret = AV_StartRec(h->av_port, filename, (void*)m3u8_node_rec_call_back, (long)h);
 				h->timestamp_ref = pts;
