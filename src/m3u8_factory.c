@@ -11,7 +11,7 @@
 #include "GssLiveConnInterface.h"
 #include "AVPlayer.h"
 
-#define HLS_VERSION			"V1.1.4"
+#define HLS_VERSION			"V1.1.5"
 #define HLS_FRAGMENT 		4	//只用作最大片时长，这个会影响m3u8请求间隔
 #define HLS_TS_REC_LEN 		3	//ts分片时长，不准确，有时间偏差
 #define HLS_KEEPLIVE_SEC 	20
